@@ -5,6 +5,7 @@
 import warnings
 import numpy as np
 from copy import deepcopy
+from collections import OrderedDict as odict
 
 import sncosmo
 from astropy.table import Table, vstack
@@ -289,7 +290,8 @@ class SurveyPlan( BaseObject ):
     _derived_properties_keys = ["observed"]
     
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, width=7., height=7., fields=None, empty=False):
+                 obs_field=None, width=7., height=7., fields=None, empty=False,
+                 load_opsim=None):
         """
         Parameters:
         ----------
@@ -301,17 +303,23 @@ class SurveyPlan( BaseObject ):
             return
     
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field,fields=fields)
+                    obs_field=obs_field,fields=fields, load_opsim=load_opsim)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-               obs_field=None, width=7., height=7., fields=None):
+               obs_field=None, width=7., height=7., fields=None, 
+               load_opsim=None):
         """
         """
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
-        self.set_fields(**fields)
+        
+        if fields is not None:
+            self.set_fields(**fields)
 
-        self.add_observation(time,band,skynoise,ra=ra,dec=dec,field=obs_field)
+        if load_opsim is None:
+            self.add_observation(time,band,skynoise,ra=ra,dec=dec,field=obs_field)
+        else:
+            self.load_opsim(load_opsim)
 
     # =========================== #
     # = Main Methods            = #
@@ -362,6 +370,46 @@ class SurveyPlan( BaseObject ):
         else:
             self._properties["cadence"] = vstack((self._properties["cadence"], 
                                                   new_obs))
+
+    # ---------------------- #
+    # - Load Method        - #
+    # ---------------------- #            
+    def load_opsim(self, filename, table_name="ptf", band_prefix="ptf"):
+        """
+        see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
+        for format description
+        
+        Currently only the used columns are loaded
+
+        table_name -- name of table in SQLite DB (deafult "ptf" because of 
+                      Eric's example)
+        band_prefix -- string prefix for sncosmo band name
+        """
+        import sqlite3
+        connection = sqlite3.connect(filename)
+
+        # define columns name and keys to be fetched
+        to_fetch = odict()
+        to_fetch['time'] = 'expMJD'
+        to_fetch['band'] = 'filter' # Currently is a float not a string in Eric's example
+        to_fetch['skynoise'] = 'filtSkyBrightness' # in mag/arcsec^2 [What do we need to convert this?]
+        to_fetch['ra'] = 'fieldRA'
+        to_fetch['dec'] = 'fieldDec'
+        to_fetch['field'] = 'fieldID'
+        
+        loaded = odict()
+        for key, value in to_fetch.items():
+            # This is not safe against injection (but should be OK)
+            # TODO: Add function to sanitize input
+            cmd = 'SELECT %s from %s;'%(value, table_name)
+            tmp = connection.execute(cmd)
+            loaded[key] = [a[0] for a in tmp]
+
+        connection.close()
+
+        self.add_observation(loaded['time'],loaded['band'],loaded['skynoise'],
+                             ra=loaded['ra'],dec=loaded['dec'],
+                             field=loaded['field'])
 
     # ================================== #
     # = Observation time determination = #
