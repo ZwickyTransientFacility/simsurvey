@@ -14,6 +14,7 @@ from astrobject.astrobject.baseobject import BaseObject
 from astrobject.utils.tools           import kwargs_update
 from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
 
+_d2r = np.pi/180
 
 __all__ = ["SimulSurvey", "SurveyPlan"] # to be changed
 
@@ -374,7 +375,7 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     # - Load Method        - #
     # ---------------------- #            
-    def load_opsim(self, filename, table_name="ptf", band_prefix="ptf"):
+    def load_opsim(self, filename, table_name="ptf", band_dict=None, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -383,7 +384,9 @@ class SurveyPlan( BaseObject ):
 
         table_name -- name of table in SQLite DB (deafult "ptf" because of 
                       Eric's example)
-        band_prefix -- string prefix for sncosmo band name
+        band_dict -- dictionary for converting filter names 
+        zp -- zero point for converting sky brightness from mag to flux units
+              (should match the zp used in instprop for SimulSurvey)
         """
         import sqlite3
         connection = sqlite3.connect(filename)
@@ -391,8 +394,9 @@ class SurveyPlan( BaseObject ):
         # define columns name and keys to be fetched
         to_fetch = odict()
         to_fetch['time'] = 'expMJD'
-        to_fetch['band'] = 'filter' # Currently is a float not a string in Eric's example
-        to_fetch['skynoise'] = 'filtSkyBrightness' # in mag/arcsec^2 [What do we need to convert this?]
+        to_fetch['band_raw'] = 'filter' # Currently is a float not a string in Eric's example
+        to_fetch['filtskybrightness'] = 'filtSkyBrightness' # in mag/arcsec^2 
+        to_fetch['seeing'] = 'finSeeing' # effective FWHM used to calculate skynoise
         to_fetch['ra'] = 'fieldRA'
         to_fetch['dec'] = 'fieldDec'
         to_fetch['field'] = 'fieldID'
@@ -403,10 +407,25 @@ class SurveyPlan( BaseObject ):
             # TODO: Add function to sanitize input
             cmd = 'SELECT %s from %s;'%(value, table_name)
             tmp = connection.execute(cmd)
-            loaded[key] = [a[0] for a in tmp]
+            loaded[key] = np.array([a[0] for a in tmp])
 
         connection.close()
 
+        loaded['ra'] /= _d2r
+        loaded['dec'] /= _d2r
+
+        # Calculate skynoise assuming that seeing is FWHM
+        if loaded['filtskybrightness'][0] is not None:
+            loaded['skynoise'] = 10 ** (-0.4*loaded['filtskybrightness'] + zp)
+            loaded['skynoise'] *= np.pi / 0.938 * loaded['seeing']
+        else:
+            loaded['skynoise'] = np.array([np.nan for a in loaded['time']])
+
+        if band_dict is not None:
+            loaded['band'] = [band_dict[band] for band in loaded['band_raw']]
+        else:
+            loaded['band'] = loaded['band_raw']
+ 
         self.add_observation(loaded['time'],loaded['band'],loaded['skynoise'],
                              ra=loaded['ra'],dec=loaded['dec'],
                              field=loaded['field'])
