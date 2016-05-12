@@ -17,36 +17,178 @@ import numpy as np
 import matplotlib.pyplot as mpl
 import pandas as pd
 
-from astrobject.astrobject.baseobject import BaseObject
+# - modefit dependency
+from modefit.fitter.baseobjects import BaseFitter,BaseModel
+# - local dependency
 from .iomock import read_mockdata
 
 
 
-class RetrieveGaia( BaseObject ):
+
+__all__ = ["get_gaiafit"]
+
+def get_gaiafit(gaiamock, modelname="Basic", **kwargs):
+    """ load a structure to fit the given Model on the mockdata.
+
+    Parameters
+    ----------
+    gaiamock: [string]
+        Datafile of the mock data. Some example provided in ./data
+
+    modelname: [string] - default 'Basic' -
+        name of the model you wish to use to fit the data.
+
+    **kwargs goes to GaiaFitter
+
+    Return
+    ------
+    GaiaFitter object.
     """
-    """
-    __nature__ = "Retriever"
-    
-    _properties_keys = ["data"]
-    _side_properties_keys = []
-    _derived_properties_keys = []
+    return GaiaFitter(gaiamock, modelname=modelname, **kwargs)
 
 
-    freeparameters = ["zeropoint", "a_gaiaGmB","a_gaiaBmR",
+
+
+# ========================== #
+#                            #
+#     Gaia Model             #
+#                            #
+# ========================== #
+"""
+# Create a new Model.
+
+## How to call it?
+You can implement any model named e.g. ModelNewOne. This model will then
+be accessible from the GaiaFitter using the keywork 'NewOne'. (`modelname='NewOne'`)
+
+## What must be its structure?
+There is only a few methods and parameter you need to implement:
+
+* `FREEPARAMETERS` the list of name of *all* the parameters
+
+* `setup` the methods that read the parameter for the model.
+   Its argument must be `parameters`
+
+* `get_loglikelihood` the must return the loglikelihood (could be -0.5*chi2) of the
+   model given the data (the parameters has been set to the model before).
+   Its argument must be `data`: the `GaiaFitter.data`
+   
+* `_minuit_chi2_` a stupid function that explicitly takes in argument *all* the
+  freeparameters. the function feed them to parameters and returns 
+  self.get_chi2(parameter).
+  For example, if FREEPARAMETERS = ["a","b","toto"]
+  then add this method:
+  ```python
+  def _minuit_chi2_(self,a,b,toto):
+      parameter = a,b,toto
+      return self.get_chi2(parameter)
+   ```
+[optional]
+* `lnprior` (optional but better): method that measure the log of the prior
+   value for the parameters. This methods could be as trivial as a flat
+   'no-informatio' prior:
+   ```python
+   def lnprior(self,parameters):
+       return 0
+    ```
+[optional]
+* `get_set_param_input`: method with no argument that returns a dictionary
+  containing part or the totality of the parameter fit properties:
+   * x`_guess`
+   * x`_boundaries`
+   * x`_fixed`
+  where x is any of the freeparameters.
+  For example, if FREEPARAMETERS = ["a","b","toto"]
+  and you know `b` have to be positive around, say 2, you could do somethings like:
+  ```python
+  def get_set_param_input(self):
+      return {"b_guess":2,"b_boundaries":[0,None]}
+  ```
+  You can overwrite anything when calling the `fit()` method. Its kwargs does just so
+  and overwrite anything returned by this default value setter.
+  
+## Done
+"""
+class ModelBasic( BaseModel ):
+    """
+    """
+    # -- unrequested if empty
+    PROPERTIES         = []
+    SIDE_PROPERTIES    = []
+    DERIVED_PROPERTIES = []
+
+    FREEPARAMETERS  = ["zeropoint", "a_gaiaGmB","a_gaiaBmR",
                        "a_airmass","a_airmass_gaiaGmB","a_airmass_gaiaBmR"]
+
+    # ================= #
+    # = Method        = #
+    # ================= #
+    def setup(self,parameters):
+        """
+        """
+        self._parameters = parameters
+                
+    def get_model(self,data):
+        """ return the expected magnitude correction based on the input parameters """
+
+        zeropoint, a_gaiaGmB,a_gaiaBmR,a_airmass,a_airmass_gaiaGmB,a_airmass_gaiaBmR = self._parameters
         
-    def __init__(self,filename=None):
+        return zeropoint +  \
+          a_gaiaGmB*data["GPmBP_gaia"] + a_gaiaBmR*data["BPmRP_gaia"] + \
+          a_airmass*data['airmass']+ \
+          a_airmass_gaiaGmB*data['airmass']*data["GPmBP_gaia"] +\
+           a_airmass_gaiaBmR*data['airmass']*data["BPmRP_gaia"]    
+
+          
+    def get_loglikelihood(self,data):
+        """ """
+        res = (self.get_model(data) + data["BP_gaia"] - data["ZTF_mag"]) / data["ZTF_mag_err"]
+        
+        return -0.5*np.sum(res**2)
+
+    def lnprior(self,parameters):
+        """ Overwritting the priors, flat here"""
+        return 0
+    
+    # ----------------------- #
+    # - Model Particularity - #
+    # ----------------------- #
+    def _minuit_chi2_(self,zeropoint, a_gaiaGmB,a_gaiaBmR,
+                       a_airmass,a_airmass_gaiaGmB,a_airmass_gaiaBmR):
+        """
+        """
+        parameter = zeropoint, a_gaiaGmB,a_gaiaBmR,a_airmass,a_airmass_gaiaGmB,a_airmass_gaiaBmR
+        return self.get_chi2(parameter)
+
+
+
+
+# ================================= #
+#                                   #
+#   Gaia Data Structure Base        #
+#                                   #
+# ================================= #
+class GaiaFitter( BaseFitter ):
+    """
+    """
+    __nature__ = "GaiaFitter"
+
+    PROPERTIES         = ["data"]
+    SIDE_PROPERTIES    = []
+    DERIVED_PROPERTIES = []
+
+    def __init__(self,filename, modelname="Basic"):
         """
         """
         self.__build__()
-        if filename is not None:
-            self.read_data(filename)
 
+        self.set_data(filename)
+        self.set_model(eval("Model%s()"%modelname))
     
     # ================= #
-    # = Init          = #
+    # = Main          = #
     # ================= #
-    def read_data(self,filename, select_ztfband=None):
+    def set_data(self,filename, select_ztfband=None):
         """ read the mock data in the given filename
         and create the data base"""
         # --------------------
@@ -58,55 +200,29 @@ class RetrieveGaia( BaseObject ):
         self._properties["data"] = dataframe
         # --------------------
         # -- and the Derived Colors
-        self.data["GPmBP_gaia"] = self.data["G_gaia"] - self.data["BP_gaia"]
+        self.data["GPmBP_gaia"]     = self.data["G_gaia"] - self.data["BP_gaia"]
         self.data["GPmBP_gaia_err"] = np.sqrt(self.data["G_gaia_err"]**2 + self.data["BP_gaia_err"]**2) # CAUTION NO COV TERM HERE
-        self.data["BPmRP_gaia"] = self.data["BP_gaia"] - self.data["RP_gaia"]
+        self.data["BPmRP_gaia"]     = self.data["BP_gaia"] - self.data["RP_gaia"]
         self.data["BPmRP_gaia_err"] = np.sqrt(self.data["BP_gaia_err"]**2 + self.data["RP_gaia_err"]**2) # CAUTION NO COV TERM HERE
 
-    # ================= #
-    # = Method        = #
-    # ================= #
-    def get_model(self,parameter):
-        """ return the expected magnitude correction based on the input parameters """
 
-        zeropoint, a_gaiaGmB,a_gaiaBmR,a_airmass,a_airmass_gaiaGmB,a_airmass_gaiaBmR = parameter
+    def get_modelchi2(self,parameters):
+        """ Parses the parameters and return the associated -2 log Likelihood
+        Both the parser and the log Likelohood functions belongs to the
+        model.
+        This should usually be passed to the model with loading it. 
         
-        return zeropoint +  \
-          a_gaiaGmB*self.data["GPmBP_gaia"] + a_gaiaBmR*self.data["BPmRP_gaia"] + \
-          a_airmass*self.data['airmass']+ \
-          a_airmass_gaiaGmB*self.data['airmass']*self.data["GPmBP_gaia"] + a_airmass_gaiaBmR*self.data['airmass']*self.data["BPmRP_gaia"]    
-        
-    
-    def get_residual(self,parameter):
-        """ """
-        model = self.get_model(parameter)+self.data["BP_gaia"]
-        return model - self.data["ZTF_mag"]
-    
-    def get_chi2(self,parameter):
-
-        res = self.get_residual(parameter) / self.data["ZTF_mag_err"]
-        
-        return np.sum(res**2)
-
-
-    # ========================== #
-    # = Bayesian stuff         = #
-    # ========================== #
-    def lnprob(self,parameter):
-        """ This is the Bayesian posterior function (in log).
-        it returns  lnprior - 0.5*Chi2
-        (Assuming Chi2 = -2logLikelihood)
+        parameters: [array]
+            a list of parameter as they could be understood
+            by self.model.setup to setup the current model.
+                                   
+        Returns
+        -------
+        float (chi2 defines as -2*log_likelihood)
         """
-        priors = self.lnprior(parameter)
-        if not np.isfinite(priors):
-            return -np.inf
-        # not sure it works with the _minuit_chi2_/_scipy_chi2_  tricks
-        return priors - 0.5*self.get_chi2(parameter)
+        self.model.setup(parameters)
+        return -2*self.model.get_loglikelihood(self.data)
 
-        
-    def lnprior(self,parameter):
-        """ flat prior so far """
-        return 0
     
     # ================= #
     # = Properties    = #
@@ -120,125 +236,14 @@ class RetrieveGaia( BaseObject ):
         """ test if the current instance has data, True means yes """
         return self.data is not None
 
-    # = Model
-    @property
-    def nparam(self):
-        return len(self.freeparameters)
-    
-    # ===================== #
-    # = MCMC Stuffs       = #
-    # ===================== #
-    def run_mcmc(self,init_guess,init_guesserr,
-                 nrun=2000, walkers_per_dof=3):
-        """
-        """
-        import emcee
-
-        # -- set up the mcmc
-        self.mcmc["ndim"], self.mcmc["nwalkers"] = \
-          self.nparam, self.nparam*walkers_per_dof
-        self.mcmc["nrun"] = nrun
-        
-        # -- init the walkers
-            
-        self.mcmc["pos_init"] = init_guess
-        self.mcmc["pos"] = [self.mcmc["pos_init"] + np.random.randn(self.mcmc["ndim"])*init_guesserr for i in range(self.mcmc["nwalkers"])]
-        # -- run the mcmc        
-        self.mcmc["sampler"] = emcee.EnsembleSampler(self.mcmc["nwalkers"], self.mcmc["ndim"], self.lnprob)
-        _ = self.mcmc["sampler"].run_mcmc(self.mcmc["pos"], self.mcmc["nrun"])
-    
-    def show_mcmc_corner(self, savefile=None, show=True,
-                         truths=None,**kwargs):
-        """
-        **kwargs goes to corner.corner
-        """
-        import corner
-        from astrobject.utils.mpladdon import figout
-        fig = corner.corner(self.mcmc_samples, labels=self.freeparameters, 
-                        truths=self.mcmc["pos_init"] if truths is None else truths,
-                        show_titles=True,label_kwargs={"fontsize":"xx-large"})
-
-        fig.figout(savefile=savefile, show=show)
-        
-    def show_mcmcwalkers(self, savefile=None, show=True,
-                        cwalker=None, cline=None, truths=None, **kwargs):
-        """ Show the walker values for the mcmc run.
-
-        Parameters
-        ----------
-
-        savefile: [string]
-            where to save the figure. if None, the figure won't be saved
-
-        show: [bool]
-            If no figure saved, the function will show it except if this is set
-            to False
-
-        cwalker, cline: [matplotlib color]
-            Colors or the walkers and input values.
-        """
-        # -- This show the 
-        import matplotlib.pyplot as mpl
-        from astrobject.utils.mpladdon import figout
-        if not self.has_mcmc_ran():
-            raise AttributeError("you must run mcmc first")
-        
-        fig = mpl.figure(figsize=[7,3*self.mcmc["ndim"]])
-        # -- inputs
-        if cline is None:
-            cline = mpl.cm.Blues(0.4,0.8)
-        if cwalker is None:
-            cwalker = mpl.cm.binary(0.7,0.2)
-        
-        # -- ploting            
-        for i, name, fitted in zip(range(self.mcmc["ndim"]), self.freeparameters, self.mcmc["pos_init"] if truths is None else truths):
-            ax = fig.add_subplot(self.mcmc["ndim"],1,i+1, ylabel=name)
-            _ = ax.plot(np.arange(self.mcmc["nrun"]), self.mcmc["sampler"].chain.T[i],
-                        color=cwalker,**kwargs)
-            
-            ax.axhline(fitted, color=cline, lw=2)
-
-        fig.figout(savefile=savefile, show=show)
-
-    # ================ #
-    # = Properties   = #
-    # ================ #
-    @property
-    def mcmc(self):
-        """ dictionary containing the mcmc parameters """
-        if self._derived_properties["mcmc"] is None:
-            self._derived_properties["mcmc"] = {}
-        return self._derived_properties["mcmc"]
-
-    @property
-    def mcmc_samples(self):
-        """ the flatten samplers after burned in removal, see set_mcmc_samples """
-        if not self.has_mcmc_ran():
-            raise AttributeError("run mcmc first.")
-        
-        if "burnin" not in self.mcmc.keys():
-            raise AttributeError("You did not specified the burnin value. see 'set_mcmc_burnin")
-        
-        return self.mcmc["sampler"].chain[:, self.mcmc["burnin"]:, :].reshape((-1, self.mcmc["ndim"]))
-    
-    def set_mcmc_burnin(self, burnin):
-        """ """
-        if burnin<0 or burnin>self.mcmc["nrun"]:
-            raise ValueError("the mcmc burnin must be greater than 0 and lower than the amount of run.")
-        
-        self.mcmc["burnin"] = burnin
-        
-    def _set_mcmc_(self,mcmcdict):
-        """ Advanced methods to avoid rerunning an existing mcmc """
-        self._derived_properties["mcmc"] = mcmcdict
-        
-    def has_mcmc_ran(self):
-        """ return True if you ran 'run_mcmc' """
-        return "sampler" in self.mcmc.keys()
 
 
-    
 
+# ================================= #
+#                                   #
+#   Internal Functions              #
+#                                   #
+# ================================= #
 
 ############################
 #                          #
