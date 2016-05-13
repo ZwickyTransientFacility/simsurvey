@@ -162,7 +162,6 @@ class ModelBasic( BaseModel ):
 
 
 
-
 # ================================= #
 #                                   #
 #   Gaia Data Structure Base        #
@@ -177,18 +176,18 @@ class GaiaFitter( BaseFitter ):
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = []
 
-    def __init__(self,filename, modelname="Basic"):
+    def __init__(self,filename, modelname="Basic", select_ztfband=None, select_maxwidth=None ):
         """
         """
         self.__build__()
 
-        self.set_data(filename)
+        self.set_data(filename, select_ztfband=None, select_maxwidth=None)
         self.set_model(eval("Model%s()"%modelname))
     
     # ================= #
     # = Main          = #
     # ================= #
-    def set_data(self,filename, select_ztfband=None):
+    def set_data(self,filename, select_ztfband=None, select_maxwidth=None):
         """ read the mock data in the given filename
         and create the data base"""
         # --------------------
@@ -196,6 +195,8 @@ class GaiaFitter( BaseFitter ):
         dataframe = read_mockdata(filename)
         if select_ztfband is not None:
             dataframe = dataframe.mask( ~(dataframe["ZTF_filter"]==select_ztfband)).dropna(axis=0,how="all")
+        if select_maxwidth is not None:
+            dataframe = dataframe.mask( ~(dataframe["x"]<=select_maxwidth) | ~(dataframe["y"]<=select_maxwidth)).dropna(axis=0,how="all")
         
         self._properties["data"] = dataframe
         # --------------------
@@ -223,7 +224,13 @@ class GaiaFitter( BaseFitter ):
         self.model.setup(parameters)
         return -2*self.model.get_loglikelihood(self.data)
 
-    
+    def get_fitresidual(self):
+        """ Return the residuals """
+        model = self.model.get_model(self.data)
+        return model - self.data["ZTF_mag"]
+
+        
+
     # ================= #
     # = Properties    = #
     # ================= #
