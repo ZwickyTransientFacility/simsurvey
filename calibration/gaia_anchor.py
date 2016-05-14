@@ -22,9 +22,6 @@ from modefit.fitter.baseobjects import BaseFitter,BaseModel
 # - local dependency
 from .iomock import read_mockdata
 
-
-
-
 __all__ = ["get_gaiafit"]
 
 def get_gaiafit(gaiamock, modelname="Basic", **kwargs):
@@ -45,8 +42,6 @@ def get_gaiafit(gaiamock, modelname="Basic", **kwargs):
     GaiaFitter object.
     """
     return GaiaFitter(gaiamock, modelname=modelname, **kwargs)
-
-
 
 
 # ========================== #
@@ -138,7 +133,6 @@ class ModelBasic( BaseModel ):
           a_airmass*data['airmass']+ \
           a_airmass_gaiaGmB*data['airmass']*data["GPmBP_gaia"] +\
            a_airmass_gaiaBmR*data['airmass']*data["BPmRP_gaia"]    
-
           
     def get_loglikelihood(self,data):
         """ """
