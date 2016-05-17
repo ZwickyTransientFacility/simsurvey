@@ -3,16 +3,15 @@
 
 """This pupose of this method is the have a generator of fake astrotarget, like SN"""
 
+import warnings
 import numpy as np
 from numpy.random import uniform, normal
 import sncosmo
-import warnings
 
-
-from astrobject.astrobject.baseobject import BaseObject,astrotarget
-from astrobject.astrobject.transient  import transient
-from astrobject.utils.tools import kwargs_extract,kwargs_update
-from astrobject.utils import random
+from astrobject                      import BaseObject
+from astrobject.astrobject.transient import transient
+from astrobject.utils.tools          import kwargs_extract,kwargs_update
+from astrobject.utils                import random
 
 _d2r = np.pi / 180
 
@@ -64,15 +63,11 @@ class TransientGenerator( BaseObject ):
     """
     __nature__ = "TransientGenerator"
     
-    _properties_keys = ["transient_coverage",
-                        "event_coverage"]
-    
-    _side_properties_keys = ["sfd98_dir", "ratefunc", "model"]
-        
-    _derived_properties_keys = ["simul_parameters", "mwebmv", 
-                                "lightcurve_parameters"]
-
-    
+    PROPERTIES         = ["transient_coverage",
+                          "event_coverage"]
+    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model"]
+    DERIVED_PROPERTIES = ["simul_parameters", "mwebmv", 
+                          "lightcurve_parameters"]
 
     def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,# How deep
                  mjd_range=[57754.0,58849.0],

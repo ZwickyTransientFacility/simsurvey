@@ -5,14 +5,16 @@
 import warnings
 import numpy as np
 from copy import deepcopy
+from collections import OrderedDict as odict
 
 import sncosmo
 from astropy.table import Table, vstack
 
-from astrobject.astrobject.baseobject import BaseObject
+from astrobject                       import BaseObject
 from astrobject.utils.tools           import kwargs_update
 from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
 
+_d2r = np.pi/180
 
 __all__ = ["SimulSurvey", "SurveyPlan"] # to be changed
 
@@ -26,9 +28,9 @@ class SimulSurvey( BaseObject ):
     Basic survey object
     (far from finished)
     """
-    _properties_keys         = ["generator","instruments","plan"]
-    _side_properties_keys    = ["cadence"]
-    _derived_properties_keys = ["observations"]
+    PROPERTIES         = ["generator","instruments","plan"]
+    SIDE_PROPERTIES    = ["cadence"]
+    DERIVED_PROPERTIES = ["observations"]
     
     def __init__(self,generator=None, plan=None,
                  instprop=None,
@@ -284,12 +286,13 @@ class SurveyPlan( BaseObject ):
     """
     __nature__ = "SurveyPlan"
 
-    _properties_keys         = ["cadence", "width", "height"]
-    _side_properties_keys    = ["fields"]
-    _derived_properties_keys = ["observed"]
+    PROPERTIES         = ["cadence", "width", "height"]
+    SIDE_PROPERTIES    = ["fields"]
+    DERIVED_PROPERTIES = ["observed"]
     
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, width=7., height=7., fields=None, empty=False):
+                 obs_field=None, width=7., height=7., fields=None, empty=False,
+                 load_opsim=None):
         """
         Parameters:
         ----------
@@ -301,17 +304,23 @@ class SurveyPlan( BaseObject ):
             return
     
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field,fields=fields)
+                    obs_field=obs_field,fields=fields, load_opsim=load_opsim)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-               obs_field=None, width=7., height=7., fields=None):
+               obs_field=None, width=7., height=7., fields=None, 
+               load_opsim=None):
         """
         """
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
-        self.set_fields(**fields)
+        
+        if fields is not None:
+            self.set_fields(**fields)
 
-        self.add_observation(time,band,skynoise,ra=ra,dec=dec,field=obs_field)
+        if load_opsim is None:
+            self.add_observation(time,band,skynoise,ra=ra,dec=dec,field=obs_field)
+        else:
+            self.load_opsim(load_opsim)
 
     # =========================== #
     # = Main Methods            = #
@@ -362,6 +371,64 @@ class SurveyPlan( BaseObject ):
         else:
             self._properties["cadence"] = vstack((self._properties["cadence"], 
                                                   new_obs))
+
+    # ---------------------- #
+    # - Load Method        - #
+    # ---------------------- #            
+    def load_opsim(self, filename, table_name="ptf", band_dict=None, zp=30):
+        """
+        see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
+        for format description
+        
+        Currently only the used columns are loaded
+
+        table_name -- name of table in SQLite DB (deafult "ptf" because of 
+                      Eric's example)
+        band_dict -- dictionary for converting filter names 
+        zp -- zero point for converting sky brightness from mag to flux units
+              (should match the zp used in instprop for SimulSurvey)
+        """
+        import sqlite3
+        connection = sqlite3.connect(filename)
+
+        # define columns name and keys to be fetched
+        to_fetch = odict()
+        to_fetch['time'] = 'expMJD'
+        to_fetch['band_raw'] = 'filter' # Currently is a float not a string in Eric's example
+        to_fetch['filtskybrightness'] = 'filtSkyBrightness' # in mag/arcsec^2 
+        to_fetch['seeing'] = 'finSeeing' # effective FWHM used to calculate skynoise
+        to_fetch['ra'] = 'fieldRA'
+        to_fetch['dec'] = 'fieldDec'
+        to_fetch['field'] = 'fieldID'
+        
+        loaded = odict()
+        for key, value in to_fetch.items():
+            # This is not safe against injection (but should be OK)
+            # TODO: Add function to sanitize input
+            cmd = 'SELECT %s from %s;'%(value, table_name)
+            tmp = connection.execute(cmd)
+            loaded[key] = np.array([a[0] for a in tmp])
+
+        connection.close()
+
+        loaded['ra'] /= _d2r
+        loaded['dec'] /= _d2r
+
+        # Calculate skynoise assuming that seeing is FWHM
+        if loaded['filtskybrightness'][0] is not None:
+            loaded['skynoise'] = 10 ** (-0.4*loaded['filtskybrightness'] + zp)
+            loaded['skynoise'] *= np.pi / 0.938 * loaded['seeing']
+        else:
+            loaded['skynoise'] = np.array([np.nan for a in loaded['time']])
+
+        if band_dict is not None:
+            loaded['band'] = [band_dict[band] for band in loaded['band_raw']]
+        else:
+            loaded['band'] = loaded['band_raw']
+ 
+        self.add_observation(loaded['time'],loaded['band'],loaded['skynoise'],
+                             ra=loaded['ra'],dec=loaded['dec'],
+                             field=loaded['field'])
 
     # ================================== #
     # = Observation time determination = #
