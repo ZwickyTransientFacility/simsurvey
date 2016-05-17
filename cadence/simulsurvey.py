@@ -10,7 +10,7 @@ from collections import OrderedDict as odict
 import sncosmo
 from astropy.table import Table, vstack
 
-from astrobject.astrobject.baseobject import BaseObject
+from astrobject                       import BaseObject
 from astrobject.utils.tools           import kwargs_update
 from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
 
@@ -28,9 +28,9 @@ class SimulSurvey( BaseObject ):
     Basic survey object
     (far from finished)
     """
-    _properties_keys         = ["generator","instruments","plan"]
-    _side_properties_keys    = ["cadence"]
-    _derived_properties_keys = ["observations"]
+    PROPERTIES         = ["generator","instruments","plan"]
+    SIDE_PROPERTIES    = ["cadence"]
+    DERIVED_PROPERTIES = ["observations"]
     
     def __init__(self,generator=None, plan=None,
                  instprop=None,
@@ -286,9 +286,9 @@ class SurveyPlan( BaseObject ):
     """
     __nature__ = "SurveyPlan"
 
-    _properties_keys         = ["cadence", "width", "height"]
-    _side_properties_keys    = ["fields"]
-    _derived_properties_keys = ["observed"]
+    PROPERTIES         = ["cadence", "width", "height"]
+    SIDE_PROPERTIES    = ["fields"]
+    DERIVED_PROPERTIES = ["observed"]
     
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
                  obs_field=None, width=7., height=7., fields=None, empty=False,
