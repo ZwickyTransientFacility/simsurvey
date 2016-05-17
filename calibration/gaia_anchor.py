@@ -16,12 +16,9 @@ Simulated values input for the fitting techniques:
 import numpy as np
 import matplotlib.pyplot as mpl
 import pandas as pd
-import warnings
+
 # - modefit dependency
-try:
-    from modefit.fitter.baseobjects import BaseFitter,BaseModel
-except ImportError:
-    warnings.warn("modefit not imported. some calibration simulation won't be accessible")
+from modefit.fitter.baseobjects import BaseFitter,BaseModel
     
 # - local dependency
 from .iomock import read_mockdata
