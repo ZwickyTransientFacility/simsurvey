@@ -69,16 +69,6 @@ There is only a few methods and parameter you need to implement:
    model given the data (the parameters has been set to the model before).
    Its argument must be `data`: the `GaiaFitter.data`
    
-* `_minuit_chi2_` a stupid function that explicitly takes in argument *all* the
-  freeparameters. the function feed them to parameters and returns 
-  self.get_chi2(parameter).
-  For example, if FREEPARAMETERS = ["a","b","toto"]
-  then add this method:
-  ```python
-  def _minuit_chi2_(self,a,b,toto):
-      parameter = a,b,toto
-      return self.get_chi2(parameter)
-   ```
 [optional]
 * `lnprior` (optional but better): method that measure the log of the prior
    value for the parameters. This methods could be as trivial as a flat
@@ -88,7 +78,7 @@ There is only a few methods and parameter you need to implement:
        return 0
     ```
 [optional]
-* `get_set_param_input`: method with no argument that returns a dictionary
+* `get_param_input`: method with no argument that returns a dictionary
   containing part or the totality of the parameter fit properties:
    * x`_guess`
    * x`_boundaries`
@@ -97,7 +87,7 @@ There is only a few methods and parameter you need to implement:
   For example, if FREEPARAMETERS = ["a","b","toto"]
   and you know `b` have to be positive around, say 2, you could do somethings like:
   ```python
-  def get_set_param_input(self):
+  def get_param_input(self):
       return {"b_guess":2,"b_boundaries":[0,None]}
   ```
   You can overwrite anything when calling the `fit()` method. Its kwargs does just so
@@ -144,17 +134,6 @@ class ModelBasic( BaseModel ):
     def lnprior(self,parameters):
         """ Overwritting the priors, flat here"""
         return 0
-    
-    # ----------------------- #
-    # - Model Particularity - #
-    # ----------------------- #
-    def _minuit_chi2_(self,zeropoint, a_gaiaGmB,a_gaiaBmR,
-                       a_airmass,a_airmass_gaiaGmB,a_airmass_gaiaBmR):
-        """
-        """
-        parameter = zeropoint, a_gaiaGmB,a_gaiaBmR,a_airmass,a_airmass_gaiaGmB,a_airmass_gaiaBmR
-        return self.get_chi2(parameter)
-
 
 
 # ================================= #
