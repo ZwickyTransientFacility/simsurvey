@@ -9,7 +9,7 @@ from numpy.random import uniform, normal
 import sncosmo
 
 from astrobject                      import BaseObject
-from astrobject.astrobject.transient import transient
+from astrobject                      import get_target
 from astrobject.utils.tools          import kwargs_extract,kwargs_update
 from astrobject.utils                import random
 
@@ -201,7 +201,7 @@ class TransientGenerator( BaseObject ):
     def get_transients(self,index=None,pass_mwebmv=True):
         """loops over the transientsources to load the transients objects.
         This method could be a bit slow..."""
-        return [transient(**s) for s in self.get_transientsource(index, pass_mwebmv)]
+        return [get_target(**s) for s in self.get_transientsource(index, pass_mwebmv)]
     
     def get_transientsource(self,index=None,pass_mwebmv=True):
         """dictionary containing the fundamental parameters that enable to
