@@ -67,7 +67,7 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Get Methods        - #
     # ---------------------- #
-    def get_lightcurves(self):
+    def get_lightcurves(self, calibration_error=0.01):
         """
         """
         if not self.is_set():
@@ -79,8 +79,20 @@ class SimulSurvey( BaseObject ):
             if obs is not None:
                 lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                          scatter=False)[0] 
-                ## TODO: Add scatter according to new fomula
-                ## possibly also with covariance or hidden bias term
+                fluxerr = np.sqrt(obs['skynoise']**2 +
+                                  np.abs(lc['flux']) / obs['gain'])
+                
+                fluxcov = np.diag(fluxerr)
+                # Convert calibration 
+                # fluxcov = calibration_error*np.ones((len(lc),len(lc)))
+
+                fluxchol = np.linalg.cholesky(fluxcov)
+                flux = lc['flux'] + fluxchol.dot(np.random.normal(len(lc)))
+
+                # TODO: 
+                # - replace flux in lc table
+                # - use perturbed MW E(B-V) instead of true values from Schlegel
+                # - expand metadata by fluxcov, RA, Dec and true E(B-V)
             else:
                 lc = None
 
