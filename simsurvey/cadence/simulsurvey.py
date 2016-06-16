@@ -73,10 +73,20 @@ class SimulSurvey( BaseObject ):
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
 
-        return [(sncosmo.realize_lcs(obs, self.generator.model, [p])[0] 
-                 if obs is not None else None)
-                for p, obs in zip(self.generator.lightcurve_full_param, 
-                                  self.observations)]
+        lcs = []
+        for p, obs in zip(self.generator.lightcurve_full_param, 
+                          self.observations):
+            if obs is not None:
+                lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
+                                         scatter=False)[0] 
+                ## TODO: Add scatter according to new fomula
+                ## possibly also with covariance or hidden bias term
+            else:
+                lc = None
+
+            lcs.append(lc)
+
+        return lcs
 
     # ---------------------- #
     # - Setter Methods     - #
