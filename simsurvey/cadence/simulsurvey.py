@@ -583,3 +583,22 @@ class SurveyPlan( BaseObject ):
     def observed(self):
         """Saved observation times per object"""
         return self._derived_properties["observed"]
+
+# ----------------------- #
+# - Auxiliary functions - #
+# ----------------------- #
+
+def suggest_skynoise_gain(errs, mags, calibration=0.05, zp=30):
+    """Suggest a value for skynoise and gain to be used
+    Based on two desired relative flux errors at certain magnitudes
+    """
+    f0 = 10**(-0.4 * (mags[0] - zp))
+    f1 = 10**(-0.4 * (mags[1] - zp))
+    err0 = errs[0]
+    err1 = errs[1]
+
+    gain = (f0 - f1) / ((f1*err1)**2 - (f0*err0)**2 + 
+                        calibration * (f0**2 - f1**2))
+    skynoise = f0 * np.sqrt(err0**2 - 1/(gain*f0) - calibration**2)
+
+    return {'skynoise': skynoise, 'gain': gain}
