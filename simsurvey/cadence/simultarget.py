@@ -65,8 +65,8 @@ class TransientGenerator( BaseObject ):
     
     PROPERTIES         = ["transient_coverage",
                           "event_coverage"]
-    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model"]
-    DERIVED_PROPERTIES = ["simul_parameters", "mwebmv", 
+    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv"]
+    DERIVED_PROPERTIES = ["simul_parameters", "mwebmv", "mwebmv_sfd98", 
                           "lightcurve_parameters"]
 
     def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,# How deep
@@ -90,7 +90,7 @@ class TransientGenerator( BaseObject ):
                ntransients=None,type_=None,
                mjd_range=[57754.0,58849.0],
                ra_range=(-180,180),dec_range=(-90,90),
-               mw_exclusion=0,sfd98_dir=None,transientprop={}):
+               mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebv=0.01):
         """
         """
         # == Add the Input Test == #
@@ -109,6 +109,8 @@ class TransientGenerator( BaseObject ):
                                       type_=type_,
                                       update=False,**transientprop)
         
+        self.set_err_mwebv(err_mwebv)
+
         self._update_()
         
     # =========================== #
@@ -413,14 +415,18 @@ class TransientGenerator( BaseObject ):
                                      **lc["param_func_kwargs"])
             self._derived_properties["simul_parameters"]["lightcurve"] = param 
 
-    def _update_mwebmv_(self):
+    def _update_mwebmv_sfd98_(self):
         try:
             m = sncosmo.SFD98Map(mapdir=self._sfd98_dir)
-            self._derived_properties["mwebmv"] = m.get_ebv((self.ra, self.dec))
+            self._derived_properties["mwebmv_sfd98"] = m.get_ebv((self.ra, self.dec))
         except IOError:
             warnings.warn("MW E(B-V) could not be fetched. Please set sfd98_dir to the map directory.")
-                 
 
+    def _update_mwebmv_(self):
+        self._derived_properties["mwebmv"] = self.mwebmv_sfd98.copy()
+        off = self.err_mwebmv * np.random.randn(self.ntransient)
+        self._derived_properties["mwebmv"] += off
+                 
     def _update_(self):
         """This module create the derived values based on the
         fundamental ones"""
@@ -557,7 +563,8 @@ class TransientGenerator( BaseObject ):
 
     @property
     def mwebmv(self):
-        """Return MW E(B-V) (if None or not up to date fetch from SFD98 map)"""
+        """Return MW E(B-V) 
+        (if None or not up to date fetch from SFD98 map, and perturb)"""
         if self._derived_properties['mwebmv'] is None:
             self._update_mwebmv_()
         
@@ -567,6 +574,20 @@ class TransientGenerator( BaseObject ):
             return None
         else:
             return np.asarray(self._derived_properties['mwebmv'])
+
+    @property
+    def mwebmv_sfd98(self):
+        """Return 'true' MW E(B-V) 
+        (if None or not up to date fetch from SFD98 map)"""
+        if self._derived_properties['mwebmv_sfd98'] is None:
+            self._update_mwebmv_sfd98_()
+        
+        # if it is still None after update, some thing went wrong
+        # likely map files were missing or in wrong directory
+        if self._derived_properties['mwebmv_sfd98'] is None:
+            return None
+        else:
+            return np.asarray(self._derived_properties['mwebmv_sfd98'])
     
     # ------------------
     # - Side properties
@@ -613,6 +634,16 @@ class TransientGenerator( BaseObject ):
         """
         self._side_properties["model"] = None
 
+    @property
+    def err_mwebv(self):
+        """Assumed error of dustmap; will be applied to lightcurve creation"""
+        return self._properties["err_mwebv"]
+
+    def set_err_mwebv(self, err):
+        """
+        """
+        self._properties['err_mwebv'] = err
+
     # -----------------------
     # - LightCuve Properties
     @property
@@ -646,7 +677,9 @@ class TransientGenerator( BaseObject ):
     def lightcurve_full_param(self):
         """Transient lightcurve parameters"""
 
-        return [dict(z=self.zcmb[i], t0=self.mjd[i], mwebv=self.mwebmv[i],
+        return [dict(z=self.zcmb[i], t0=self.mjd[i], 
+                     ra=self.ra[i], dec=self.dec[i],
+                     mwebv_sfd98=self.mwebv_sfd98[i], mwebv=self.mwebmv[i], 
                      **{p: v[i] for p, v in self.lightcurve.items()})
                 for i in range(self.ntransient)]
 

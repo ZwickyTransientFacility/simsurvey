@@ -29,11 +29,11 @@ class SimulSurvey( BaseObject ):
     (far from finished)
     """
     PROPERTIES         = ["generator","instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence"]
+    SIDE_PROPERTIES    = ["cadence","blind_bias"]
     DERIVED_PROPERTIES = ["observations"]
     
     def __init__(self,generator=None, plan=None,
-                 instprop=None,
+                 instprop=None, blind_bias=None,
                  empty=False):
         """
         Parameters:
@@ -46,9 +46,9 @@ class SimulSurvey( BaseObject ):
         if empty:
             return
 
-        self.create(generator, plan, instprop)
+        self.create(generator, plan, instprop, blind_bias)
 
-    def create(self, generator, plan, instprop):
+    def create(self, generator, plan, instprop, blind_bias):
         """
         """
         if generator is not None:
@@ -59,6 +59,9 @@ class SimulSurvey( BaseObject ):
 
         if instprop is not None:
             self.set_instruments(instprop)
+        
+        if blind_bias is not None:
+            self.set_blind_bias(blind_bias) 
 
     # =========================== #
     # = Main Methods            = #
@@ -67,7 +70,7 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Get Methods        - #
     # ---------------------- #
-    def get_lightcurves(self, calibration_error=0.01):
+    def get_lightcurves(self):
         """
         """
         if not self.is_set():
@@ -77,22 +80,36 @@ class SimulSurvey( BaseObject ):
         for p, obs in zip(self.generator.lightcurve_full_param, 
                           self.observations):
             if obs is not None:
+                ra, dec, mwebv_sfd98 = p.pop('RA'), p.pop('Dec'), p.pop('mwebv_sfd98')
                 lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                          scatter=False)[0] 
                 fluxerr = np.sqrt(obs['skynoise']**2 +
                                   np.abs(lc['flux']) / obs['gain'])
                 
                 fluxcov = np.diag(fluxerr)
-                # Convert calibration 
-                # fluxcov = calibration_error*np.ones((len(lc),len(lc)))
-
+                for band in set(obs['band']):
+                    if 'err_calib' in self.instrument[band].keys():
+                        idx = np.where(obs['band'] == band)[0]
+                        err = self.instrument[band]['err_calib']
+                        for k0 in idx:
+                            for k1 in idx:
+                                fluxcov[k0,k1] += (lc['flux'][k0] * 
+                                                   lc['flux'][k1] *
+                                                   err**2)
+                                                   
                 fluxchol = np.linalg.cholesky(fluxcov)
                 flux = lc['flux'] + fluxchol.dot(np.random.normal(len(lc)))
+                bias_array = np.array(self.blind_bias[band] for band in obs['band'])
+                flux *= 10 ** (-0.4*bias_array)
+
+                lc.meta['RA'] = ra
+                lc.meta['Dec'] = dec
+                lc.meta['fluxcov'] = fluxcov
+                lc.meta['mwebv_sfd98'] = mwebv_sfd98
 
                 # TODO: 
                 # - replace flux in lc table
                 # - use perturbed MW E(B-V) instead of true values from Schlegel
-                # - expand metadata by fluxcov, RA, Dec and true E(B-V)
             else:
                 lc = None
 
@@ -139,28 +156,39 @@ class SimulSurvey( BaseObject ):
     def set_instruments(self,properties):
         """
         properties must be a dictionary containing the
-        instruments' information (bandname,gain,zp,zpsys) related
+        instruments' information (bandname,gain,zp,zpsys,err_calib) related
         to each bands
         
+
         example..
         ---------
-        properties = {"desg":{"gain":1,"zp":30,"zpsys":'ab'},
-                      "desr":{"gain":1,"zp":30,"zpsys":'ab'}}
+        properties = {"desg":{"gain":1,"zp":30,"zpsys":'ab',"err_calib":0.005},
+                      "desr":{"gain":1,"zp":30,"zpsys":'ab',"err_calib":0.005}}
         """
         prop = deepcopy(properties)
         for band,d in prop.items():
-            gain,zp,zpsys=d.pop("gain"),d.pop("zp"),d.pop("zpsys","ab")
+            gain,zp,zpsys = d.pop("gain"),d.pop("zp"),d.pop("zpsys","ab")
+            err_calib = d.pop("err_calib", None)
             if gain is None or zp is None:
                 raise ValueError('gain or zp is None or not defined for %s'%band)
-            self.add_instrument(band,gain,zp,zpsys,
+            self.add_instrument(band,gain,zp,zpsys,err_calib,
                                 update=False,**d)
         
         self._reset_observations_()
 
+    # -----------------------
+    # - Blinded bias in bands
+    def set_blind_bias(self, bias):
+        """Expect input dict of band and bounds maximum bias
+        Bias will be drawn from uniform distribution
+        """
+        self._properties['blind_bias'] = {k: np.random.uniform(-v, v) 
+                                          for k, v in bias.items()}
+
     # ---------------------- #
     # - Add Stuffs         - #
     # ---------------------- #
-    def add_instrument(self,bandname,gain,zp,zpsys="ab",
+    def add_instrument(self,bandname,gain,zp,zpsys="ab",err_calib=None,
                        force_it=True,update=True,**kwargs):
         """
         kwargs could be any properties you wish to save with the instrument
@@ -172,7 +200,7 @@ class SimulSurvey( BaseObject ):
             raise AttributeError("%s is already defined."+\
                                  " Set force_it to True to overwrite it. ")
                                  
-        instprop = {"gain":gain,"zp":zp,"zpsys":zpsys}
+        instprop = {"gain":gain,"zp":zp,"zpsys":zpsys,"err_calib":err_calib}
         self.instruments[bandname] = kwargs_update(instprop,**kwargs)
         
         if update:
@@ -277,7 +305,11 @@ class SimulSurvey( BaseObject ):
         else:
             raise ValueError("Property 'plan' not set yet")
 
-                    
+    @property
+    def blind_bias(self):
+        """Blind bias applied to specific bands for all observations"""
+        return self._properties["blind_bias"]    
+
     # ------------------
     # - Derived values
     @property
@@ -588,7 +620,7 @@ class SurveyPlan( BaseObject ):
 # - Auxiliary functions - #
 # ----------------------- #
 
-def suggest_skynoise_gain(errs, mags, calibration=0.05, zp=30):
+def suggest_skynoise_gain(errs, mags, calibration=0.005, zp=30):
     """Suggest a value for skynoise and gain to be used
     Based on two desired relative flux errors at certain magnitudes
     """
