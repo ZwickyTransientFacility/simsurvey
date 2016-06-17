@@ -109,7 +109,6 @@ class SimulSurvey( BaseObject ):
 
                 # TODO: 
                 # - replace flux in lc table
-                # - use perturbed MW E(B-V) instead of true values from Schlegel
             else:
                 lc = None
 

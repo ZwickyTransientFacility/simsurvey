@@ -44,13 +44,13 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
     
 def generate_transients(zrange,**kwargs):
     """
-    This module calls transient_generator to create the
+    This module calls get_transient_generator to create the
     TransientGenerator object and then returns the associated
     TransientGenerator.transients
 
     # - HERE COPY PASTE the transient_generator docstring
     """
-    return transient_generator(zrange,**kwargs).transients
+    return get_transient_generator(zrange,**kwargs).transients
 
 
 #######################################
