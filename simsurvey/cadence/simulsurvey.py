@@ -29,11 +29,11 @@ class SimulSurvey( BaseObject ):
     (far from finished)
     """
     PROPERTIES         = ["generator","instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence","blind_bias"]
+    SIDE_PROPERTIES    = ["cadence","blinded_bias"]
     DERIVED_PROPERTIES = ["observations"]
     
     def __init__(self,generator=None, plan=None,
-                 instprop=None, blind_bias=None,
+                 instprop=None, blinded_bias=None,
                  empty=False):
         """
         Parameters:
@@ -46,9 +46,9 @@ class SimulSurvey( BaseObject ):
         if empty:
             return
 
-        self.create(generator, plan, instprop, blind_bias)
+        self.create(generator, plan, instprop, blinded_bias)
 
-    def create(self, generator, plan, instprop, blind_bias):
+    def create(self, generator, plan, instprop, blinded_bias):
         """
         """
         if generator is not None:
@@ -60,8 +60,8 @@ class SimulSurvey( BaseObject ):
         if instprop is not None:
             self.set_instruments(instprop)
         
-        if blind_bias is not None:
-            self.set_blind_bias(blind_bias) 
+        if blinded_bias is not None:
+            self.set_blinded_bias(blinded_bias) 
 
     # =========================== #
     # = Main Methods            = #
@@ -80,35 +80,47 @@ class SimulSurvey( BaseObject ):
         for p, obs in zip(self.generator.lightcurve_full_param, 
                           self.observations):
             if obs is not None:
-                ra, dec, mwebv_sfd98 = p.pop('RA'), p.pop('Dec'), p.pop('mwebv_sfd98')
+                ra, dec, mwebv_sfd98 = p.pop('ra'), p.pop('dec'), p.pop('mwebv_sfd98')
+                
+                # Get unperturbed lc from sncosmo
                 lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
-                                         scatter=False)[0] 
+                                         scatter=False)[0]
+
+                # Replace fluxerrors with covariance matrix that contains
+                # correlated terms for the calibration uncertainty
                 fluxerr = np.sqrt(obs['skynoise']**2 +
                                   np.abs(lc['flux']) / obs['gain'])
                 
                 fluxcov = np.diag(fluxerr)
                 for band in set(obs['band']):
-                    if 'err_calib' in self.instrument[band].keys():
+                    if 'err_calib' in self.instruments[band].keys():
                         idx = np.where(obs['band'] == band)[0]
-                        err = self.instrument[band]['err_calib']
+                        err = self.instruments[band]['err_calib']
                         for k0 in idx:
                             for k1 in idx:
                                 fluxcov[k0,k1] += (lc['flux'][k0] * 
                                                    lc['flux'][k1] *
                                                    err**2)
                                                    
+                # Add random (but correlated) noise to the fluxes
                 fluxchol = np.linalg.cholesky(fluxcov)
-                flux = lc['flux'] + fluxchol.dot(np.random.normal(len(lc)))
-                bias_array = np.array(self.blind_bias[band] for band in obs['band'])
-                flux *= 10 ** (-0.4*bias_array)
+                flux = lc['flux'] + fluxchol.dot(np.random.randn(len(lc)))
+                
+                # Apply blinded bias if given
+                if self.blinded_bias is not None:
+                    bias_array = np.array([self.blinded_bias[band] 
+                                           if band in self.blinded_bias.keys() else 0
+                                           for band in obs['band']])
+                    flux *= 10 ** (-0.4*bias_array)
 
-                lc.meta['RA'] = ra
-                lc.meta['Dec'] = dec
+                lc['flux'] = flux
+                lc['fluxerr'] = np.sqrt(np.diag(fluxcov))
+
+                # Additional metadata for the lc fitter
+                lc.meta['ra'] = ra
+                lc.meta['dec'] = dec
                 lc.meta['fluxcov'] = fluxcov
-                lc.meta['mwebv_sfd98'] = mwebv_sfd98
-
-                # TODO: 
-                # - replace flux in lc table
+                lc.meta['mwebv_sfd98'] = mwebv_sfd98                
             else:
                 lc = None
 
@@ -177,12 +189,12 @@ class SimulSurvey( BaseObject ):
 
     # -----------------------
     # - Blinded bias in bands
-    def set_blind_bias(self, bias):
+    def set_blinded_bias(self, bias):
         """Expect input dict of band and bounds maximum bias
         Bias will be drawn from uniform distribution
         """
-        self._properties['blind_bias'] = {k: np.random.uniform(-v, v) 
-                                          for k, v in bias.items()}
+        self._side_properties['blinded_bias'] = {k: np.random.uniform(-v, v) 
+                                            for k, v in bias.items()}
 
     # ---------------------- #
     # - Add Stuffs         - #
@@ -305,9 +317,9 @@ class SimulSurvey( BaseObject ):
             raise ValueError("Property 'plan' not set yet")
 
     @property
-    def blind_bias(self):
-        """Blind bias applied to specific bands for all observations"""
-        return self._properties["blind_bias"]    
+    def blinded_bias(self):
+        """Blinded bias applied to specific bands for all observations"""
+        return self._side_properties["blinded_bias"]    
 
     # ------------------
     # - Derived values
@@ -622,6 +634,8 @@ class SurveyPlan( BaseObject ):
 def suggest_skynoise_gain(errs, mags, calibration=0.005, zp=30):
     """Suggest a value for skynoise and gain to be used
     Based on two desired relative flux errors at certain magnitudes
+
+    [NOT WORKING YET; IGNORE FOR NOW]
     """
     f0 = 10**(-0.4 * (mags[0] - zp))
     f1 = 10**(-0.4 * (mags[1] - zp))

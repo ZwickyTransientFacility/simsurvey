@@ -65,7 +65,7 @@ class TransientGenerator( BaseObject ):
     
     PROPERTIES         = ["transient_coverage",
                           "event_coverage"]
-    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv"]
+    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebmv"]
     DERIVED_PROPERTIES = ["simul_parameters", "mwebmv", "mwebmv_sfd98", 
                           "lightcurve_parameters"]
 
@@ -90,7 +90,7 @@ class TransientGenerator( BaseObject ):
                ntransients=None,type_=None,
                mjd_range=[57754.0,58849.0],
                ra_range=(-180,180),dec_range=(-90,90),
-               mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebv=0.01):
+               mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebmv=0.01):
         """
         """
         # == Add the Input Test == #
@@ -109,7 +109,7 @@ class TransientGenerator( BaseObject ):
                                       type_=type_,
                                       update=False,**transientprop)
         
-        self.set_err_mwebv(err_mwebv)
+        self.set_err_mwebmv(err_mwebmv)
 
         self._update_()
         
@@ -635,14 +635,14 @@ class TransientGenerator( BaseObject ):
         self._side_properties["model"] = None
 
     @property
-    def err_mwebv(self):
+    def err_mwebmv(self):
         """Assumed error of dustmap; will be applied to lightcurve creation"""
-        return self._properties["err_mwebv"]
+        return self._properties["err_mwebmv"]
 
-    def set_err_mwebv(self, err):
+    def set_err_mwebmv(self, err):
         """
         """
-        self._properties['err_mwebv'] = err
+        self._properties['err_mwebmv'] = err
 
     # -----------------------
     # - LightCuve Properties
@@ -679,7 +679,7 @@ class TransientGenerator( BaseObject ):
 
         return [dict(z=self.zcmb[i], t0=self.mjd[i], 
                      ra=self.ra[i], dec=self.dec[i],
-                     mwebv_sfd98=self.mwebv_sfd98[i], mwebv=self.mwebmv[i], 
+                     mwebv_sfd98=self.mwebmv_sfd98[i], mwebv=self.mwebmv[i], 
                      **{p: v[i] for p, v in self.lightcurve.items()})
                 for i in range(self.ntransient)]
 
