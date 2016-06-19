@@ -233,8 +233,9 @@ class TransientGenerator( BaseObject ):
                          self.model.parameters)}
         out = []
         for param in self.lightcurve_full_param:
-            self.model.set(**param)
-            out.append(self.model.bandmag(band, magsys, param['t0'] + t))
+            p = {k: param[k] for k in self.model.param_names if k != 'mwr_v'}
+            self.model.set(**p)
+            out.append(self.model.bandmag(band, magsys, p['t0'] + t))
         self.model.set(**param0)
 
         return np.array(out)
