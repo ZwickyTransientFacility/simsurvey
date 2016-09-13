@@ -93,7 +93,7 @@ class SimulSurvey( BaseObject ):
                 
                 fluxcov = np.diag(fluxerr)
                 for band in set(obs['band']):
-                    if 'err_calib' in self.instruments[band].keys():
+                    if self.instruments[band]['err_calib'] is not None:
                         idx = np.where(obs['band'] == band)[0]
                         err = self.instruments[band]['err_calib']
                         for k0 in idx:
