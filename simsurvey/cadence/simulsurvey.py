@@ -43,8 +43,7 @@ class SimulSurvey( BaseObject ):
         Parameters:
         ----------
         generator: [simultarget.transient_generator or derived child like sn_generator]
-
-v        
+     
         """
         self.__build__()
         if empty:
@@ -102,8 +101,10 @@ v
                                   np.abs(lc['flux']) / obs['gain'])
                 
                 fluxcov = np.diag(fluxerr)
+                save_cov = False
                 for band in set(obs['band']):
                     if self.instruments[band]['err_calib'] is not None:
+                        save_cov = True
                         idx = np.where(obs['band'] == band)[0]
                         err = self.instruments[band]['err_calib']
                         for k0 in idx:
@@ -129,7 +130,8 @@ v
                 # Additional metadata for the lc fitter
                 lc.meta['ra'] = ra
                 lc.meta['dec'] = dec
-                lc.meta['fluxcov'] = fluxcov
+                if save_cov:
+                    lc.meta['fluxcov'] = fluxcov
                 lc.meta['mwebv_sfd98'] = mwebv_sfd98                
             else:
                 lc = None
