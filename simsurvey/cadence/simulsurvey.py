@@ -8,11 +8,15 @@ from copy import deepcopy
 from collections import OrderedDict as odict
 
 import sncosmo
-from astropy.table import Table, vstack
+from astropy.table                    import Table, vstack
+from astropy.utils.console            import ProgressBar
 
 from astrobject                       import BaseObject
 from astrobject.utils.tools           import kwargs_update
 from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
+
+import datetime
+import time
 
 _d2r = np.pi/180
 
@@ -29,26 +33,26 @@ class SimulSurvey( BaseObject ):
     (far from finished)
     """
     PROPERTIES         = ["generator","instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence","blinded_bias"]
+    SIDE_PROPERTIES    = ["cadence","blinded_bias","progress_bar"]
     DERIVED_PROPERTIES = ["observations"]
     
     def __init__(self,generator=None, plan=None,
                  instprop=None, blinded_bias=None,
-                 empty=False):
+                 progress_bar=False, empty=False):
         """
         Parameters:
         ----------
         generator: [simultarget.transient_generator or derived child like sn_generator]
 
-        
+v        
         """
         self.__build__()
         if empty:
             return
 
-        self.create(generator, plan, instprop, blinded_bias)
+        self.create(generator, plan, instprop, blinded_bias, progress_bar)
 
-    def create(self, generator, plan, instprop, blinded_bias):
+    def create(self, generator, plan, instprop, blinded_bias, progress_bar):
         """
         """
         if generator is not None:
@@ -62,6 +66,8 @@ class SimulSurvey( BaseObject ):
         
         if blinded_bias is not None:
             self.set_blinded_bias(blinded_bias) 
+
+        self._side_properties['progress_bar'] = progress_bar
 
     # =========================== #
     # = Main Methods            = #
@@ -77,8 +83,12 @@ class SimulSurvey( BaseObject ):
             raise AttributeError("plan, generator or instrument not set")
 
         lcs = []
-        for p, obs in zip(self.generator.lightcurve_full_param, 
-                          self.observations):
+        gen = zip(self.generator.lightcurve_full_param, self.observations)
+        if self.progress_bar:
+            print 'Generating lightcurves'
+            gen = ProgressBar(gen)
+
+        for p, obs in gen:
             if obs is not None:
                 ra, dec, mwebv_sfd98 = p.pop('ra'), p.pop('dec'), p.pop('mwebv_sfd98')
                 
@@ -270,8 +280,11 @@ class SimulSurvey( BaseObject ):
         
         # -----------------------
         # - Lets build the tables
+        print 'observe'
+        t0 = time.time()
         self.plan.observe(self.generator.ra, self.generator.dec,
                           mjd_range=mjd_range)
+        print 'observed ', str(datetime.timedelta(seconds=time.time() - t0))
 
         self._derived_properties["observations"] = [(Table(
             {"time": obs["time"],
@@ -281,7 +294,7 @@ class SimulSurvey( BaseObject ):
              "zp":[self.instruments[b]["zp"] for b in obs["band"]],
              "zpsys":[self.instruments[b]["zpsys"] for b in obs["band"]]
             }) if len(obs) > 0 else None) for obs in self.plan.observed]
-    
+
     # =========================== #
     # = Properties and Settings = #
     # =========================== #
@@ -320,6 +333,11 @@ class SimulSurvey( BaseObject ):
     def blinded_bias(self):
         """Blinded bias applied to specific bands for all observations"""
         return self._side_properties["blinded_bias"]    
+
+    @property
+    def progress_bar(self):
+        """Progress bar option for the lc generation process"""
+        return self._side_properties["progress_bar"]    
 
     # ------------------
     # - Derived values
