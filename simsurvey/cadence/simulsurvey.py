@@ -100,7 +100,7 @@ class SimulSurvey( BaseObject ):
                 fluxerr = np.sqrt(obs['skynoise']**2 +
                                   np.abs(lc['flux']) / obs['gain'])
                 
-                fluxcov = np.diag(fluxerr)
+                fluxcov = np.diag(fluxerr**2)
                 save_cov = False
                 for band in set(obs['band']):
                     if self.instruments[band]['err_calib'] is not None:
