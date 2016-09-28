@@ -571,13 +571,8 @@ class SurveyPlan( BaseObject ):
         # Now get the other observations (those with a field number)
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
-            print 'assign fields'
-            t0 = time.time()
             b = self.fields.coord2field(ra, dec)
-            print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
 
-            print 'making dicts'
-            t0 = time.time()
             # if all pointings were in fields create new dicts, otherwise append
             if single_coord is None:
                 if type(b) is not list:
@@ -602,20 +597,15 @@ class SurveyPlan( BaseObject ):
                         out[k]['band'].extend(self.cadence['band'][mask])
                         out[k]['skynoise'].extend(self.cadence['skynoise']
                                                   [mask].quantity.value)
-            print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
 
-        print 'making tables'
-        t0 = time.time()
         # Make Tables and sort by time
         if single_coord:
             table = Table(out, meta={'RA': ra, 'Dec': dec})
             idx = np.argsort(table['time'])
             if mjd_range is None:
-                print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
                 return table[idx]
             else:
                 t = table[idx]
-                print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
                 return t[(t['time'] >= mjd_range[0]) &
                          (t['time'] <= mjd_range[1])]
         else:
@@ -623,11 +613,9 @@ class SurveyPlan( BaseObject ):
                       in zip(out, ra, dec)]
             idx = [np.argsort(t['time']) for t in tables]
             if mjd_range is None:
-                print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
                 return [t[i] for t, i in zip(tables, idx)]
             else:
                 ts = [t[i] for t, i in zip(tables, idx)]
-                print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
                 return [t[(t['time'] >= mjd_range[0][k]) &
                           (t['time'] <= mjd_range[1][k])] 
                         for k, t in enumerate(ts)]
