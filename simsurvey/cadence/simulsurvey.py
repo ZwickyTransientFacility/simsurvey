@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 from copy import deepcopy
 from collections import OrderedDict as odict
+from itertools import izip
 
 import sncosmo
 from astropy.table                    import Table, vstack
@@ -34,8 +35,8 @@ class SimulSurvey( BaseObject ):
     """
     PROPERTIES         = ["generator","instruments","plan"]
     SIDE_PROPERTIES    = ["cadence","blinded_bias","progress_bar"]
-    DERIVED_PROPERTIES = ["observations"]
-    
+    DERIVED_PROPERTIES = [] #["observations"]
+
     def __init__(self,generator=None, plan=None,
                  instprop=None, blinded_bias=None,
                  progress_bar=False, empty=False):
@@ -43,7 +44,7 @@ class SimulSurvey( BaseObject ):
         Parameters:
         ----------
         generator: [simultarget.transient_generator or derived child like sn_generator]
-     
+
         """
         self.__build__()
         if empty:
@@ -62,9 +63,9 @@ class SimulSurvey( BaseObject ):
 
         if instprop is not None:
             self.set_instruments(instprop)
-        
+
         if blinded_bias is not None:
-            self.set_blinded_bias(blinded_bias) 
+            self.set_blinded_bias(blinded_bias)
 
         self._side_properties['progress_bar'] = progress_bar
 
@@ -82,7 +83,8 @@ class SimulSurvey( BaseObject ):
             raise AttributeError("plan, generator or instrument not set")
 
         lcs = []
-        gen = zip(self.generator.lightcurve_full_param, self.observations)
+        gen = izip(self.generator.get_lightcurve_full_param(),
+                  self._get_observations_())
         if self.progress_bar:
             print 'Generating lightcurves'
             gen = ProgressBar(gen)
@@ -90,7 +92,7 @@ class SimulSurvey( BaseObject ):
         for p, obs in gen:
             if obs is not None:
                 ra, dec, mwebv_sfd98 = p.pop('ra'), p.pop('dec'), p.pop('mwebv_sfd98')
-                
+
                 # Get unperturbed lc from sncosmo
                 lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                          scatter=False)[0]
@@ -99,7 +101,7 @@ class SimulSurvey( BaseObject ):
                 # correlated terms for the calibration uncertainty
                 fluxerr = np.sqrt(obs['skynoise']**2 +
                                   np.abs(lc['flux']) / obs['gain'])
-                
+
                 fluxcov = np.diag(fluxerr**2)
                 save_cov = False
                 for band in set(obs['band']):
@@ -112,14 +114,14 @@ class SimulSurvey( BaseObject ):
                                 fluxcov[k0,k1] += (lc['flux'][k0] * 
                                                    lc['flux'][k1] *
                                                    err**2)
-                                                   
+
                 # Add random (but correlated) noise to the fluxes
                 fluxchol = np.linalg.cholesky(fluxcov)
                 flux = lc['flux'] + fluxchol.dot(np.random.randn(len(lc)))
-                
+
                 # Apply blinded bias if given
                 if self.blinded_bias is not None:
-                    bias_array = np.array([self.blinded_bias[band] 
+                    bias_array = np.array([self.blinded_bias[band]
                                            if band in self.blinded_bias.keys() else 0
                                            for band in obs['band']])
                     flux *= 10 ** (-0.4*bias_array)
@@ -132,7 +134,7 @@ class SimulSurvey( BaseObject ):
                 lc.meta['dec'] = dec
                 if save_cov:
                     lc.meta['fluxcov'] = fluxcov
-                lc.meta['mwebv_sfd98'] = mwebv_sfd98                
+                lc.meta['mwebv_sfd98'] = mwebv_sfd98
             else:
                 lc = None
 
@@ -143,7 +145,7 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Setter Methods     - #
     # ---------------------- #
-    
+
     # -------------
     # - Targets
     def set_target_generator(self, generator):
@@ -169,7 +171,7 @@ class SimulSurvey( BaseObject ):
           plan.__nature__ != "SurveyPlan":
             raise TypeError("the input 'plan' must be an astrobject SurveyPlan")
         self._properties["plan"] = plan
-        
+
         # ----------------------------
         # - Set back the observations
         self._reset_observations_()
@@ -181,7 +183,7 @@ class SimulSurvey( BaseObject ):
         properties must be a dictionary containing the
         instruments' information (bandname,gain,zp,zpsys,err_calib) related
         to each bands
-        
+
 
         example..
         ---------
@@ -196,7 +198,7 @@ class SimulSurvey( BaseObject ):
                 raise ValueError('gain or zp is None or not defined for %s'%band)
             self.add_instrument(band,gain,zp,zpsys,err_calib,
                                 update=False,**d)
-        
+
         self._reset_observations_()
 
     # -----------------------
@@ -218,17 +220,17 @@ class SimulSurvey( BaseObject ):
         """
         if self.instruments is None:
             self._properties["instruments"] = {}
-            
+
         if bandname in self.instruments.keys() and not force_it:
             raise AttributeError("%s is already defined."+\
                                  " Set force_it to True to overwrite it. ")
-                                 
+
         instprop = {"gain":gain,"zp":zp,"zpsys":zpsys,"err_calib":err_calib}
         self.instruments[bandname] = kwargs_update(instprop,**kwargs)
-        
+
         if update:
             self._reset_observations_()
-            
+
     # ---------------------- #
     # - Recover Methods    - #
     # ---------------------- #
@@ -256,15 +258,16 @@ class SimulSurvey( BaseObject ):
         """
         """
         self._derived_properties["observations"] = None
-        
-    def _load_observations_(self):
+
+    #def _load_observations_(self):
+    def _get_observations_(self):
         """
         """
         # -------------
         # - Input test
         if self.plan is None or self.instruments is None:
             raise AttributeError("Plan or Instruments is not set.")
-        
+
         # -----------------------
         # - Check if instruments exists
         all_instruments = np.unique(self.cadence["band"])
@@ -272,30 +275,31 @@ class SimulSurvey( BaseObject ):
             raise ValueError("Some of the instrument in cadence have not been defined."+"\n"+
                              "given instruments :"+", ".join(all_instruments.tolist())+"\n"+
                              "known instruments :"+", ".join(self.instruments.keys()))
-            
+
         # -----------------------
         # - Based on the model get a reasonable time scale for each transient
         mjd = self.generator.mjd
         z = np.array(self.generator.zcmb)
         mjd_range = np.array([mjd + self.generator.model.mintime() * (1 + z), 
                               mjd + self.generator.model.maxtime() * (1 + z)])
-        
+
         # -----------------------
         # - Lets build the tables
-        #print 'observe'
-        #t0 = time.time()
-        self.plan.observe(self.generator.ra, self.generator.dec,
-                          mjd_range=mjd_range)
-        #print 'observed ', str(datetime.timedelta(seconds=time.time() - t0))
+        obs_gen = self.plan.observe(self.generator.ra, self.generator.dec,
+                                    mjd_range=mjd_range)
 
-        self._derived_properties["observations"] = [(Table(
-            {"time": obs["time"],
-             "band": obs["band"],
-             "skynoise": obs["skynoise"],
-             "gain":[self.instruments[b]["gain"] for b in obs["band"]],
-             "zp":[self.instruments[b]["zp"] for b in obs["band"]],
-             "zpsys":[self.instruments[b]["zpsys"] for b in obs["band"]]
-            }) if len(obs) > 0 else None) for obs in self.plan.observed]
+        for obs in obs_gen:
+            if len(obs) > 0: 
+                yield Table(
+                    {"time": obs["time"],
+                     "band": obs["band"],
+                     "skynoise": obs["skynoise"],
+                     "gain":[self.instruments[b]["gain"] for b in obs["band"]],
+                     "zp":[self.instruments[b]["zp"] for b in obs["band"]],
+                     "zpsys":[self.instruments[b]["zpsys"] for b in obs["band"]]}
+                )
+            else:
+                yield None
 
     # =========================== #
     # = Properties and Settings = #
@@ -304,7 +308,7 @@ class SimulSurvey( BaseObject ):
     def instruments(self):
         """The basic information relative to the instrument used for the survey"""
         return self._properties["instruments"]
-    
+
     @property
     def generator(self):
         """The instance that enable to create fake targets"""
@@ -334,25 +338,25 @@ class SimulSurvey( BaseObject ):
     @property
     def blinded_bias(self):
         """Blinded bias applied to specific bands for all observations"""
-        return self._side_properties["blinded_bias"]    
+        return self._side_properties["blinded_bias"]
 
     @property
     def progress_bar(self):
         """Progress bar option for the lc generation process"""
-        return self._side_properties["progress_bar"]    
+        return self._side_properties["progress_bar"]
 
     # ------------------
     # - Derived values
-    @property
-    def observations(self):
-        """Observations derived from cadence and instrument properties.
-        Note that the first time this is called, observations will be recorded"""
-        
-        if self._derived_properties["observations"] is None:
-            self._load_observations_()
-            
-        return self._derived_properties["observations"]
-                                          
+    # @property
+    # def observations(self):
+    #     """Observations derived from cadence and instrument properties.
+    #     Note that the first time this is called, observations will be recorded"""
+
+    #     if self._derived_properties["observations"] is None:
+    #         self._load_observations_()
+
+    #     return self._derived_properties["observations"]
+
 
 #######################################
 #                                     #
@@ -374,7 +378,7 @@ class SurveyPlan( BaseObject ):
     PROPERTIES         = ["cadence", "width", "height"]
     SIDE_PROPERTIES    = ["fields"]
     DERIVED_PROPERTIES = ["observed"]
-    
+
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
                  obs_field=None, width=7., height=7., fields=None, empty=False,
                  load_opsim=None):
@@ -382,12 +386,12 @@ class SurveyPlan( BaseObject ):
         Parameters:
         ----------
         TBA
-        
+
         """
         self.__build__()
         if empty:
             return
-    
+
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
                     obs_field=obs_field,fields=fields, load_opsim=load_opsim)
 
@@ -398,7 +402,7 @@ class SurveyPlan( BaseObject ):
         """
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
-        
+
         if fields is not None:
             self.set_fields(**fields)
 
@@ -414,7 +418,7 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     # - Get Methods        - #
     # ---------------------- #
-    
+
     # ---------------------- #
     # - Setter Methods     - #
     # ---------------------- #
@@ -459,12 +463,12 @@ class SurveyPlan( BaseObject ):
 
     # ---------------------- #
     # - Load Method        - #
-    # ---------------------- #            
+    # ---------------------- #
     def load_opsim(self, filename, table_name="ptf", band_dict=None, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
-        
+
         Currently only the used columns are loaded
 
         table_name -- name of table in SQLite DB (deafult "ptf" because of 
@@ -485,7 +489,7 @@ class SurveyPlan( BaseObject ):
         to_fetch['ra'] = 'fieldRA'
         to_fetch['dec'] = 'fieldDec'
         to_fetch['field'] = 'fieldID'
-        
+
         loaded = odict()
         for key, value in to_fetch.items():
             # This is not safe against injection (but should be OK)
@@ -520,13 +524,14 @@ class SurveyPlan( BaseObject ):
     # ================================== #
     def observe(self, ra, dec, mjd_range=None):
         """
+        TODO: deprecate? Don't really want to save the observation list.
         """
         self._derived_properties["observed"] = self.observed_on(ra, dec,
                                                                 mjd_range)
 
         return self._derived_properties["observed"]
 
-    def observed_on(self, ra, dec, mjd_range=None, progress_bar=False):
+    def observed_on(self, ra, dec, mjd_range=None):
         """
         mjd_range must be (2,N)-array 
         where N is the length of ra and dec
@@ -541,7 +546,7 @@ class SurveyPlan( BaseObject ):
             tmp_f = SurveyField(obs["RA"], obs["Dec"], 
                                 self.width, self.height)
             b = tmp_f.coord_in_field(ra, dec)
-            
+
             # Setup output as dictionaries that can be converted to Tables and
             # sorted later
             if k == 0:
@@ -570,7 +575,7 @@ class SurveyPlan( BaseObject ):
             t0 = time.time()
             b = self.fields.coord2field(ra, dec)
             print 'done ', str(datetime.timedelta(seconds=time.time() - t0))
-            
+
             print 'making dicts'
             t0 = time.time()
             # if all pointings were in fields create new dicts, otherwise append
@@ -581,7 +586,7 @@ class SurveyPlan( BaseObject ):
                 else:
                     single_coord = False
                     out = [{'time': [], 'band': [], 'skynoise': []} for r in ra]
-            
+
             if single_coord:
                 for l in b:
                     mask = (self.cadence['field'] == l)

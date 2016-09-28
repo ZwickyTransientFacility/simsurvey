@@ -35,13 +35,13 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
 
     # - HERE COPY PASTE THE TransientGenerator INIT - #
     # - TO BE DONE
-    
+
     """
     return TransientGenerator(ratekind=ratekind,ratefunc=ratefunc,
                               ntransients=ntransients,zrange=zrange,
                               ra_range=ra_range,dec_range=dec_range,
                               **kwargs)
-    
+
 def generate_transients(zrange,**kwargs):
     """
     This module calls get_transient_generator to create the
@@ -62,7 +62,7 @@ class TransientGenerator( BaseObject ):
     """
     """
     __nature__ = "TransientGenerator"
-    
+
     PROPERTIES         = ["transient_coverage",
                           "event_coverage"]
     SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebmv"]
@@ -78,7 +78,7 @@ class TransientGenerator( BaseObject ):
         self.__build__()
         if empty:
             return
-        
+
         self.create(zrange,
                     ratekind=ratekind, ratefunc=ratefunc, 
                     ntransients=ntransients,
@@ -95,7 +95,7 @@ class TransientGenerator( BaseObject ):
         """
         # == Add the Input Test == #
         #   TO BE DONE
-        
+
         # *************** #
         # * Create      * #
         # *************** #
@@ -104,15 +104,15 @@ class TransientGenerator( BaseObject ):
                                   **{"ra_range":ra_range,"dec_range":dec_range,
                                    "zcmb_range":zrange,"mjd_range":mjd_range,
                                    "mw_exclusion":mw_exclusion})
-        
+
         self.set_transient_parameters(ratekind=ratekind,ratefunc=ratefunc,
                                       type_=type_,
                                       update=False,**transientprop)
-        
+
         self.set_err_mwebmv(err_mwebmv)
 
         self._update_()
-        
+
     # =========================== #
     # = Main Methods            = #
     # =========================== #
@@ -129,12 +129,12 @@ class TransientGenerator( BaseObject ):
         """
         known_event_prop = ["ra_range","dec_range","zcmb_range",
                             "mw_exclusion","mjd_range"]
-            
+
         for k in kwargs.keys():
             if k not in known_event_prop:
                 raise ValueError("'%s' is not an 'event' parameter."%k +\
                                  " These are: "+", ".join(known_event_prop))
-                                 
+
         self._properties["event_coverage"] = kwargs_update(self.event_coverage,
                                                            **kwargs)
         if update:
@@ -147,16 +147,16 @@ class TransientGenerator( BaseObject ):
         """
         if self._properties["transient_coverage"] is None:
             self._properties["transient_coverage"] = {}
-            
+
         # -- if this works, you are good to go
         f = RateGenerator().get_ratefunc(transient=type_,ratekind=ratekind,
                                          ratefunc=ratefunc)
-        
+
         # - you are good to fill it
         self._properties["transient_coverage"]["transienttype"] = type_
         self._properties["transient_coverage"]["ratekind"] = ratekind
         self._side_properties["ratefunction"] = f
-        
+
         if "lcmodel" in kwargs.keys():
             self.set_model(kwargs["lcmodel"])
             self.set_lightcurve_prop(model=self.model,**kwargs)
@@ -165,7 +165,7 @@ class TransientGenerator( BaseObject ):
 
         if update:
             self._update_()
-            
+
     def set_lightcurve_prop(self,source=None, model=None, lcsimul_func=None,
                             lcsimul_prop={}, **kwargs):
         """
@@ -175,7 +175,7 @@ class TransientGenerator( BaseObject ):
         if lcsimul_func is None:
             raise ValueError("please set lcsimul_func")
 
-        props = { 
+        props = {
             "param_func": lcsimul_func,
             "param_func_kwargs": lcsimul_prop
         }
@@ -184,12 +184,12 @@ class TransientGenerator( BaseObject ):
             props["source"] = None
             props["model"] = model
         elif source is not None:
-            accepted = [str, sncosmo.models.SALT2Source, 
+            accepted = [str, sncosmo.models.SALT2Source,
                         sncosmo.models.TimeSeriesSource]
             if source.__class__ not in accepted:
-                raise TypeError("source must be string, " + 
+                raise TypeError("source must be string, " +
                                 "sncosmo.models.TimeSeriesSource or" +
-                                "sncosmo.models.SALT2Source")    
+                                "sncosmo.models.SALT2Source")
             props["source"] = source
             props["model"] = None
         else:
@@ -204,7 +204,7 @@ class TransientGenerator( BaseObject ):
         """loops over the transientsources to load the transients objects.
         This method could be a bit slow..."""
         return [get_target(**s) for s in self.get_transientsource(index, pass_mwebmv)]
-    
+
     def get_transientsource(self,index=None,pass_mwebmv=True):
         """dictionary containing the fundamental parameters that enable to
         load the transient objects"""
@@ -213,13 +213,13 @@ class TransientGenerator( BaseObject ):
 
         # If self.mwebmv remains None, something went wrong and
         # pass_mwebmb is set to None. This should already have
-        # resulted in a warning, no need for another one. 
+        # resulted in a warning, no need for another one.
         if pass_mwebmv and self.mwebmv is None:
             pass_mwebmv = False
 
         return [dict(name="simul%d"%i,ra=self.ra[i],dec=self.dec[i], zcmb=self.zcmb[i],
                      mjd=self.mjd[i],type_=self.transient_coverage["transienttype"],
-                     lightcurve=None, 
+                     lightcurve=None,
                      forced_mwebmv=(self.mwebmv[i] if pass_mwebmv else None))
                 for i in xrange(self.ntransient) if index is None or i in index]
 
@@ -227,8 +227,8 @@ class TransientGenerator( BaseObject ):
         """
         Returns the magnitudes of transient according to lightcurve parameters
         """
-        # Save old params, so you can restore them 
-        param0 = {name: value for name, value 
+        # Save old params, so you can restore them
+        param0 = {name: value for name, value
                   in zip(self.model.param_names,
                          self.model.parameters)}
         out = []
@@ -239,6 +239,15 @@ class TransientGenerator( BaseObject ):
         self.model.set(**param0)
 
         return np.array(out)
+
+    def get_lightcurve_full_param(self):
+        """Transient lightcurve parameters"""
+
+        for i in xrange(self.ntransient):
+            yield dict(z=self.zcmb[i], t0=self.mjd[i],
+                       ra=self.ra[i], dec=self.dec[i],
+                       mwebv_sfd98=self.mwebmv_sfd98[i], mwebv=self.mwebmv[i],
+                       **{p: v[i] for p, v in self.lightcurve.items()})
 
     # --------------------------- #
     # - Plots Methods           - #
@@ -266,7 +275,7 @@ class TransientGenerator( BaseObject ):
         vmin/vmax: [float]         set vmin/vmax of the colorbar manually;
                                    overrides results cmargin but if e.g. only
                                    vmin is given vmax from cmargin is still used
-        
+
         mask: [None/bool. array]   mask for the scatter plot
 
         - output option -
@@ -278,7 +287,7 @@ class TransientGenerator( BaseObject ):
         Returns:
         --------
         dict of the plot parameters
-        
+
         """
         import matplotlib.pyplot as mpl
         from astrobject.utils.mpladdon import figout, skyplot
@@ -286,7 +295,7 @@ class TransientGenerator( BaseObject ):
         self._plot = {}
 
         # ------------------
-        # - Color Scale 
+        # - Color Scale
         if cscale == 'zcmb':
             c = np.asarray([t['zcmb'] for t in self.transientsources])
             if cblabel is None:
@@ -296,23 +305,23 @@ class TransientGenerator( BaseObject ):
         elif cscale is not None:
             raise ValueError('cscale must be array or predefined string, '+\
                              ' e.g. "redshift"')
-        
+
         # ------------------
-        # - Mask 
+        # - Mask
         if mask is None:
             mask = np.ones(self.ntransient, dtype=bool)
 
         # ------------------
         # - Axis definition
         if ax is None:
-            ax_default = dict(fig=None, figsize=(12, 6), 
-                              rect=[0.1, 0.1, 0.8, 0.8], 
+            ax_default = dict(fig=None, figsize=(12, 6),
+                              rect=[0.1, 0.1, 0.8, 0.8],
                               projection='mollweide',
                               xlabelpad=None,
                               xlabelmode='show')
             if cscale is not None:
                 ax_default['figsize'] = (12,8)
-                
+
             ax_kw, kwargs = kwargs_extract(ax_default, **kwargs)
             fig, ax = ax_skyplot(**ax_kw)
         elif ("MollweideTransform" not in dir(ax) and
@@ -350,7 +359,7 @@ class TransientGenerator( BaseObject ):
 
         fig.figout(savefile=savefile,show=show)
         
-        return self._plot        
+        return self._plot
 
     def hist_skycoverage(self, ax=None, savefile=None, show=True, 
                          cblabel=r"$N_{SNe}$", **kwargs):
@@ -673,16 +682,6 @@ class TransientGenerator( BaseObject ):
         if "lightcurve_prop" not in self.transient_coverage:
             raise AttributeError("no 'lightcurve_prop' defined")
         return self.lightcurve_properties["source"]
-
-    @property
-    def lightcurve_full_param(self):
-        """Transient lightcurve parameters"""
-
-        return [dict(z=self.zcmb[i], t0=self.mjd[i], 
-                     ra=self.ra[i], dec=self.dec[i],
-                     mwebv_sfd98=self.mwebmv_sfd98[i], mwebv=self.mwebmv[i], 
-                     **{p: v[i] for p, v in self.lightcurve.items()})
-                for i in range(self.ntransient)]
 
     
 #######################################
