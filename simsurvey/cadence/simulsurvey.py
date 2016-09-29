@@ -88,7 +88,7 @@ class SimulSurvey( BaseObject ):
         if self.progress_bar:
             print 'Assigning fields'
             self._assign_obs_fields_()
-            self._assign_obs_fields_()
+            self._assign_non_field_obs_()
             
             print 'Generating lightcurves'
             with ProgressBar(self.generator.ntransient) as bar:
