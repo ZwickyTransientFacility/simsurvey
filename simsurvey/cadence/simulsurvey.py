@@ -86,7 +86,6 @@ class SimulSurvey( BaseObject ):
         gen = izip(self.generator.get_lightcurve_full_param(),
                    self._get_observations_())
         if self.progress_bar:
-            print 'Assigning fields'
             self._assign_obs_fields_()
             self._assign_non_field_obs_()
             
@@ -320,7 +319,8 @@ class SimulSurvey( BaseObject ):
         """
         self._derived_properties["obs_fields"] = self.plan.get_obs_fields(
             self.generator.ra,
-            self.generator.dec
+            self.generator.dec,
+            self.progress_bar
         )
 
     def _reset_obs_fields_(self):
@@ -333,7 +333,8 @@ class SimulSurvey( BaseObject ):
         """
         self._derived_properties["non_field_obs"] = self.plan.get_non_field_obs(
             self.generator.ra,
-            self.generator.dec
+            self.generator.dec,
+            self.progress_bar
         )
 
     def _reset_non_field_obs_(self):
@@ -592,21 +593,26 @@ class SurveyPlan( BaseObject ):
     # ================================== #
     # = Observation time determination = #
     # ================================== #
-    def get_obs_fields(self, ra, dec):
+    def get_obs_fields(self, ra, dec, progress_bar=False):
         """
         """
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
-            return self.fields.coord2field(ra, dec)
+            return self.fields.coord2field(ra, dec, progress_bar=progress_bar)
         else:
             return None
         
-    def get_non_field_obs(self, ra, dec):
+    def get_non_field_obs(self, ra, dec, progress_bar=False):
         """
         """
         observed = False
+        gen = self.cadence[np.isnan(self.cadence["field"])]
         
-        for k, obs in enumerate(self.cadence[np.isnan(self.cadence["field"])]):
+        if progress_bar and len(gen) > 0:
+            print "Finding transients observed in custom pointings"
+            gen = ProgressBar(gen)
+
+        for k, obs in enumerate(gen):
             tmp_f = SurveyField(obs["RA"], obs["Dec"], 
                                 self.width, self.height)
             b = tmp_f.coord_in_field(ra, dec)
