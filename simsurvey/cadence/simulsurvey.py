@@ -4,11 +4,13 @@
 
 import warnings
 import numpy as np
+import cPickle
 from copy import deepcopy
 from collections import OrderedDict as odict
 from itertools import izip
 
 import sncosmo
+from sncosmo.photdata                 import standardize_data, dict_to_array
 from astropy.table                    import Table, vstack
 from astropy.utils.console            import ProgressBar
 
@@ -21,7 +23,7 @@ import time
 
 _d2r = np.pi/180
 
-__all__ = ["SimulSurvey", "SurveyPlan"] # to be changed
+__all__ = ["SimulSurvey", "SurveyPlan", "LightcurveCollection"] # to be changed
 
 #######################################
 #                                     #
@@ -33,6 +35,8 @@ class SimulSurvey( BaseObject ):
     Basic survey object
     (far from finished)
     """
+    __nature__ = "SimulSurvey"
+    
     PROPERTIES         = ["generator","instruments","plan"]
     SIDE_PROPERTIES    = ["cadence","blinded_bias","progress_bar"]
     DERIVED_PROPERTIES = ["obs_fields", "non_field_obs", "non_field_obs_exist"]
@@ -82,7 +86,7 @@ class SimulSurvey( BaseObject ):
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
 
-        lcs = []
+        lcs = LightcurveCollection(empty=True)
         gen = izip(self.generator.get_lightcurve_full_param(),
                    self._get_observations_())
         if self.progress_bar:
@@ -92,11 +96,13 @@ class SimulSurvey( BaseObject ):
             print 'Generating lightcurves'
             with ProgressBar(self.generator.ntransient) as bar:
                 for p, obs in gen:
-                    lcs.append(self._get_lightcurve_(p, obs))
+                    if obs is not None:
+                        lcs.add(self._get_lightcurve_(p, obs))
                     bar.update()
         else:
             for p, obs in gen:
-                lcs.append(self._get_lightcurve_(p, obs))
+                if obs is not None:
+                    lcs.add(self._get_lightcurve_(p, obs))
 
         return lcs
             
@@ -267,12 +273,7 @@ class SimulSurvey( BaseObject ):
         # -- Do you have all you need ?
         if not self.is_set():
             return
-
-    # def _reset_observations_(self):
-    #     """
-    #     """
-    #     self._derived_properties["observations"] = None
-
+            
     #def _load_observations_(self):
     def _get_observations_(self):
         """
@@ -418,17 +419,6 @@ class SimulSurvey( BaseObject ):
         """Avoid checking for non-field pointings more than once."""
         return self._derived_properties["non_field_obs_exist"]
 
-    # @property
-    # def observations(self):
-    #     """Observations derived from cadence and instrument properties.
-    #     Note that the first time this is called, observations will be recorded"""
-
-    #     if self._derived_properties["observations"] is None:
-    #         self._load_observations_()
-
-    #     return self._derived_properties["observations"]
-
-
 #######################################
 #                                     #
 # Survey: Plan object                 #
@@ -448,7 +438,7 @@ class SurveyPlan( BaseObject ):
 
     PROPERTIES         = ["cadence", "width", "height"]
     SIDE_PROPERTIES    = ["fields"]
-    DERIVED_PROPERTIES = [] #["observed"]
+    DERIVED_PROPERTIES = []
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
                  obs_field=None, width=7., height=7., fields=None, empty=False,
@@ -639,15 +629,6 @@ class SurveyPlan( BaseObject ):
             return out
         else:
             return None
-        
-    # def observe(self, ra, dec, mjd_range=None):
-    #     """
-    #     TODO: deprecate? Don't really want to save the observation list.
-    #     """
-    #     self._derived_properties["observed"] = self.observed_on(ra, dec,
-    #                                                             mjd_range)
-
-    #     return self._derived_properties["observed"]
 
     def observed_on(self, fields=None, non_field=None, mjd_range=None):
         """
@@ -708,9 +689,155 @@ class SurveyPlan( BaseObject ):
         """Observation fields"""
         return self._side_properties["fields"]
 
-    # ------------------
-    # - Derived values
-    # @property
-    # def observed(self):
-    #     """Saved observation times per object"""
-    #     return self._derived_properties["observed"]
+#######################################
+#                                     #
+# Survey: Plan object                 #
+#                                     #
+#######################################
+class LightcurveCollection( BaseObject ):
+    """
+    LightcurveCollection
+    Collects and organizes lightcurves (e.g. simulated by a Survey object)
+    for easy access and serialization while try to avoid excessive memory
+    use by Astropy Tables. Superficially acts like a list of tables but
+    creates them on the fly from structured numpy arrays
+    """
+    __nature__ = "LightcurveCollection"
+
+    PROPERTIES         = ['lcs','meta']
+    SIDE_PROPERTIES    = []
+    DERIVED_PROPERTIES = []
+
+    def __init__(self, lcs=None, empty=False, load=None):
+        """
+        Parameters:
+        ----------
+        TBA
+
+        """
+        self.__build__()
+        if empty:
+            return
+
+        self.create(lcs=lcs, load=load)
+
+    def create(self, lcs=None, load=None):
+        """
+        """
+        if load is None:
+            self.add(lcs)
+        else:
+            self.load(load)
+
+    # =========================== #
+    # = Main Methods            = #
+    # =========================== #
+    def add(self, lcs):
+        """
+        """
+        if type(lcs) is list:
+            meta = [lc.meta for lc in lcs]
+        else:
+            meta = lcs.meta
+
+        self._add_lcs_(lcs)
+        self._add_meta_(meta)    
+
+    def load(self, filename):
+        """
+        """
+        loaded = cPickle.load(open(filename))
+        self._properties['lcs'] = loaded['lcs']
+        self._properties['meta'] = loaded['meta']
+
+    def save(self, filename):
+        """
+        """
+        cPickle.dump({'lcs': self._properties["lcs"],
+                      'meta': self._properties["meta"]},
+                     open(filename, 'w'))
+
+    # ---------------------- #
+    # - Get Methods        - #
+    # ---------------------- #
+    def __getitem__(self, given):
+        """
+        """
+        if isinstance(given, slice):
+            return [Table(data=data,
+                          meta={k: v for k, v in zip(meta.dtype.names, meta)})
+                    for data, meta in
+                    zip(self.lcs[given], self.meta[given])]
+        else:
+            meta = self.meta[given]
+            return Table(data=self.lcs[given],
+                         meta={k: v for k, v in zip(meta.dtype.names, meta)}) 
+            
+    # ---------------------- #
+    # - Add Methods        - #
+    # ---------------------- #
+
+    def _add_lcs_(self, lcs):
+        """
+        """
+        if self.lcs is None:
+            self._properties['lcs'] = []
+
+        if type(lcs) is list:
+            for lc in lcs:
+                self._properties['lcs'].append(standardize_data(lc))
+        else:
+            self._properties['lcs'].append(standardize_data(lcs))
+
+    def _add_meta_(self, meta):
+        """
+        """
+        if type(meta) is list:
+            if self.meta is None:
+                keys = [k for k in meta[0].keys()]
+                dtypes = [type(v) for v in meta[0].values()]
+                self._create_meta_(keys, dtypes)
+                
+            for meta_ in meta:
+                for k in self.meta.dtype.names:
+                    self._properties['meta'][k] = np.append(
+                        self._properties['meta'][k],
+                        meta_[k]
+                    )
+        else:
+            if self.meta is None:
+                keys = [k for k in meta.keys()]
+                dtypes = [type(v) for v in meta.values()]
+                self._create_meta_(keys, dtypes)
+                
+            for k in self.meta.dtype.names:
+                self._properties['meta'][k] = np.append(
+                    self._properties['meta'][k],
+                    meta[k]
+                )            
+
+    def _create_meta_(self, keys, dtypes):
+        """
+        Create the ordered ditcionary of meta parameters based of first item
+        """
+        self._properties['meta'] = odict()
+        for k, t in zip(keys, dtypes):
+            self._properties['meta'][k] = np.array([], dtype=t)
+                
+        
+    # =========================== #
+    # = Properties and Settings = #
+    # =========================== #
+    @property
+    def lcs(self):
+        """List of lcs as numpy structured arrays without meta parameters"""
+        return self._properties["lcs"]
+
+    @property
+    def meta(self):
+        """numpy structured array with of meta parameters"""
+        if self._properties["meta"] is None:
+            return None
+        return dict_to_array(self._properties["meta"])
+
+    
