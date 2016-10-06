@@ -95,18 +95,18 @@ class SimulSurvey( BaseObject ):
             
             print 'Generating lightcurves'
             with ProgressBar(self.generator.ntransient) as bar:
-                for p, obs in gen:
+                for k, (p, obs) in enumerate(gen):
                     if obs is not None:
-                        lcs.add(self._get_lightcurve_(p, obs))
+                        lcs.add(self._get_lightcurve_(p, obs, k))
                     bar.update()
         else:
-            for p, obs in gen:
+            for k, (p, obs) in enumerate(gen):
                 if obs is not None:
-                    lcs.add(self._get_lightcurve_(p, obs))
+                    lcs.add(self._get_lightcurve_(p, obs, k))
 
         return lcs
             
-    def _get_lightcurve_(self, p, obs):
+    def _get_lightcurve_(self, p, obs, idx_orig=None):
         """
         """        
         if obs is not None:
@@ -154,6 +154,8 @@ class SimulSurvey( BaseObject ):
             if save_cov:
                 lc.meta['fluxcov'] = fluxcov
             lc.meta['mwebv_sfd98'] = mwebv_sfd98
+            if idx_orig is not None:
+                lc.meta['idx_orig'] = idx_orig
         else:
             lc = None
 
@@ -441,7 +443,7 @@ class SurveyPlan( BaseObject ):
     DERIVED_PROPERTIES = []
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, width=7., height=7., fields=None, empty=False,
+                 obs_field=None, width=6.86, height=6.86, fields=None, empty=False,
                  load_opsim=None):
         """
         Parameters:
@@ -824,7 +826,6 @@ class LightcurveCollection( BaseObject ):
         for k, t in zip(keys, dtypes):
             self._properties['meta'][k] = np.array([], dtype=t)
                 
-        
     # =========================== #
     # = Properties and Settings = #
     # =========================== #
