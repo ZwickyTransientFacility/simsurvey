@@ -18,9 +18,6 @@ from astrobject                       import BaseObject
 from astrobject.utils.tools           import kwargs_update
 from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
 
-import datetime
-import time
-
 _d2r = np.pi/180
 
 __all__ = ["SimulSurvey", "SurveyPlan", "LightcurveCollection"] # to be changed
