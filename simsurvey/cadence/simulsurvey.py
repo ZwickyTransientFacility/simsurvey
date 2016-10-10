@@ -18,9 +18,6 @@ from astrobject                       import BaseObject
 from astrobject.utils.tools           import kwargs_update
 from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
 
-import datetime
-import time
-
 _d2r = np.pi/180
 
 __all__ = ["SimulSurvey", "SurveyPlan", "LightcurveCollection"] # to be changed
@@ -38,12 +35,12 @@ class SimulSurvey( BaseObject ):
     __nature__ = "SimulSurvey"
     
     PROPERTIES         = ["generator","instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence","blinded_bias","progress_bar"]
+    SIDE_PROPERTIES    = ["cadence","blinded_bias"]
     DERIVED_PROPERTIES = ["obs_fields", "non_field_obs", "non_field_obs_exist"]
 
     def __init__(self,generator=None, plan=None,
                  instprop=None, blinded_bias=None,
-                 progress_bar=False, empty=False):
+                 empty=False):
         """
         Parameters:
         ----------
@@ -54,9 +51,9 @@ class SimulSurvey( BaseObject ):
         if empty:
             return
 
-        self.create(generator, plan, instprop, blinded_bias, progress_bar)
+        self.create(generator, plan, instprop, blinded_bias)
 
-    def create(self, generator, plan, instprop, blinded_bias, progress_bar):
+    def create(self, generator, plan, instprop, blinded_bias):
         """
         """
         if generator is not None:
@@ -71,8 +68,6 @@ class SimulSurvey( BaseObject ):
         if blinded_bias is not None:
             self.set_blinded_bias(blinded_bias)
 
-        self._side_properties['progress_bar'] = progress_bar
-
     # =========================== #
     # = Main Methods            = #
     # =========================== #
@@ -80,7 +75,7 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Get Methods        - #
     # ---------------------- #
-    def get_lightcurves(self):
+    def get_lightcurves(self, progress_bar=False):
         """
         """
         if not self.is_set():
@@ -89,9 +84,9 @@ class SimulSurvey( BaseObject ):
         lcs = LightcurveCollection(empty=True)
         gen = izip(self.generator.get_lightcurve_full_param(),
                    self._get_observations_())
-        if self.progress_bar:
-            self._assign_obs_fields_()
-            self._assign_non_field_obs_()
+        if progress_bar:
+            self._assign_obs_fields_(progress_bar=True)
+            self._assign_non_field_obs_(progress_bar=True)
             
             print 'Generating lightcurves'
             with ProgressBar(self.generator.ntransient) as bar:
@@ -317,13 +312,13 @@ class SimulSurvey( BaseObject ):
             else:
                 yield None
 
-    def _assign_obs_fields_(self):
+    def _assign_obs_fields_(self, progress_bar=False):
         """
         """
         self._derived_properties["obs_fields"] = self.plan.get_obs_fields(
             self.generator.ra,
             self.generator.dec,
-            self.progress_bar
+            progress_bar
         )
 
     def _reset_obs_fields_(self):
@@ -331,13 +326,13 @@ class SimulSurvey( BaseObject ):
         """
         self._derived_properties["obs_fields"] = None
 
-    def _assign_non_field_obs_(self):
+    def _assign_non_field_obs_(self, progress_bar=False):
         """
         """
         self._derived_properties["non_field_obs"] = self.plan.get_non_field_obs(
             self.generator.ra,
             self.generator.dec,
-            self.progress_bar
+            progress_bar
         )
 
     def _reset_non_field_obs_(self):
@@ -384,11 +379,6 @@ class SimulSurvey( BaseObject ):
     def blinded_bias(self):
         """Blinded bias applied to specific bands for all observations"""
         return self._side_properties["blinded_bias"]
-
-    @property
-    def progress_bar(self):
-        """Progress bar option for the lc generation process"""
-        return self._side_properties["progress_bar"]
 
     # ------------------
     # - Derived values
