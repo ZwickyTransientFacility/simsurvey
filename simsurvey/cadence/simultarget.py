@@ -8,6 +8,9 @@ import numpy as np
 from numpy.random import uniform, normal
 import sncosmo
 
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
+from astropy.cosmology import FlatLambdaCDM
+
 from astrobject                      import BaseObject
 from astrobject                      import get_target
 from astrobject.utils.tools          import kwargs_extract,kwargs_update
@@ -27,7 +30,7 @@ def get_sn_generator(zrange,ratekind="basic",**kwargs):
 
 def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
                         ra_range=[-180,180], dec_range=[-90,90],
-                        ntransients=None,
+                        ntransient=None,
                         **kwargs):
     """
     This model returns the object that enables to create and change
@@ -38,7 +41,7 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
 
     """
     return TransientGenerator(ratekind=ratekind,ratefunc=ratefunc,
-                              ntransients=ntransients,zrange=zrange,
+                              ntransient=ntransient,zrange=zrange,
                               ra_range=ra_range,dec_range=dec_range,
                               **kwargs)
 
@@ -72,7 +75,7 @@ class TransientGenerator( BaseObject ):
     def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,# How deep
                  mjd_range=[57754.0,58849.0],
                  ra_range=(-180,180),dec_range=(-90,90), # Where, see also kwargs
-                 ntransients=None,empty=False,sfd98_dir=None,**kwargs):
+                 ntransient=None,empty=False,sfd98_dir=None,**kwargs):
         """
         """
         self.__build__()
@@ -81,13 +84,13 @@ class TransientGenerator( BaseObject ):
 
         self.create(zrange,
                     ratekind=ratekind, ratefunc=ratefunc, 
-                    ntransients=ntransients,
+                    ntransient=ntransient,
                     ra_range=ra_range, dec_range=dec_range,
                     mjd_range=mjd_range,sfd98_dir=sfd98_dir,
                     **kwargs)
 
     def create(self,zrange,ratekind="basic",ratefunc=None,
-               ntransients=None,type_=None,
+               ntransient=None,type_=None,
                mjd_range=[57754.0,58849.0],
                ra_range=(-180,180),dec_range=(-90,90),
                mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebmv=0.01):
@@ -106,7 +109,7 @@ class TransientGenerator( BaseObject ):
                                    "mw_exclusion":mw_exclusion})
 
         self.set_transient_parameters(ratekind=ratekind,ratefunc=ratefunc,
-                                      type_=type_,
+                                      type_=type_, ntransient=ntransient,
                                       update=False,**transientprop)
 
         self.set_err_mwebmv(err_mwebmv)
@@ -141,7 +144,8 @@ class TransientGenerator( BaseObject ):
             self._update_()
 
     def set_transient_parameters(self,ratekind="basic",ratefunc=None,
-                                 update=True,type_=None,**kwargs):
+                                 ntransient=None, update=True,type_=None,
+                                 **kwargs):
         """
         This method will define the transient properties.
         """
@@ -155,6 +159,9 @@ class TransientGenerator( BaseObject ):
         # - you are good to fill it
         self._properties["transient_coverage"]["transienttype"] = type_
         self._properties["transient_coverage"]["ratekind"] = ratekind
+        if ntransient is not None:
+            self._properties["transient_coverage"]["ntransient"] = ntransient
+
         self._side_properties["ratefunction"] = f
 
         if "lcmodel" in kwargs.keys():
@@ -406,11 +413,18 @@ class TransientGenerator( BaseObject ):
         """
         # -----------------------
         # - Redshift from Rate
-        self.simul_parameters["zcmb"] = \
-          list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
-                             time=self.timescale, area=self.coveredarea,
-                             ratefunc=self.ratefunc))
-
+        if "ntransient" not in self.transient_coverage.keys():
+            self.simul_parameters["zcmb"] = \
+                list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
+                                   time=self.timescale, area=self.coveredarea,
+                                   ratefunc=self.ratefunc))
+        else:
+            self.simul_parameters["zcmb"] = \
+                list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
+                                      self.zcmb_range[0], self.zcmb_range[1],
+                                      ratefunc=self.ratefunc))
+            
+            
         self.simul_parameters["mjd"] = self._simulate_mjd_()
         self.simul_parameters["ra"], self.simul_parameters["dec"] = \
           random.radec(self.ntransient,
@@ -699,6 +713,7 @@ class SNIaGenerator( TransientGenerator ):
     # - Hacked Methods   - #
     # -------------------- #
     def set_transient_parameters(self,ratekind="basic",ratefunc=None,
+                                 ntransient=None,
                                  lcsimulation="basic",
                                  lcsource="salt2",type_=None,
                                  update=True,lcsimul_prop={}):
@@ -713,6 +728,7 @@ class SNIaGenerator( TransientGenerator ):
         super(SNIaGenerator,self).set_transient_parameters(type_=type_,
                                                            ratekind=ratekind,
                                                            ratefunc=ratefunc,
+                                                           ntransient=ntransient,
                                                            lcsource=lcsource,
                                                            lcsimul_func=f,
                                                            lcsimul_prop=lcsimul_prop,
@@ -806,7 +822,7 @@ class RateGenerator( _PropertyGenerator_ ):
             transient = None
         elif transient == "Ia":
             avialable_rates = self.known_Ia_rates
-        elif ratekind != "custom":
+        elif ratekind not in ["custom"]:
             raise ValueError("'%s' is not a known transient"%transient)
     
         # ---------------
@@ -1028,4 +1044,63 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def known_Ia_lightcurve_simulation(self):
         return self._parse_rate_("lightcurve_Ia")
     
+
+#######################################
+#                                     #
+# Utilities                           #
+#                                     #
+#######################################
+def zdist_fixed_nsim(nsim, zmin, zmax, 
+                     ratefunc=lambda z: 1.,
+                     cosmo=FlatLambdaCDM(H0=70.0, Om0=0.3)):
+    """Generate a distribution of redshifts.
+
+    Generates redshifts for a given number of tranisents with the correct
+    redshift distribution, given the input volumetric SN rate function and
+    cosmology.
+
+    (Adapted from sncosmo.zdist)
     
+    Parameters
+    ----------
+    nsim : int
+        Number of transient redshifts to be simulated. 
+    zmin, zmax : float
+        Minimum and maximum redshift.
+    ratefunc : callable
+        A callable that accepts a single float (redshift) and returns the
+        comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.
+        The default is a function that returns ``1.``.
+    cosmo : `~astropy.cosmology.Cosmology`, optional
+        Cosmology used to determine volume. The default is a FlatLambdaCDM
+        cosmology with ``Om0=0.3``, ``H0=70.0``.
+
+    Examples
+    --------
+
+    TBA
+    """
+
+    # Get comoving volume in each redshift shell.
+    z_bins = 100  # Good enough for now.
+    z_binedges = np.linspace(zmin, zmax, z_bins + 1)
+    z_binctrs = 0.5 * (z_binedges[1:] + z_binedges[:-1])
+    sphere_vols = cosmo.comoving_volume(z_binedges).value
+    shell_vols = sphere_vols[1:] - sphere_vols[:-1]
+
+    # SN / (observer year) in shell
+    shell_snrate = np.array([shell_vols[i] *
+                             ratefunc(z_binctrs[i]) / (1.+z_binctrs[i])
+                             for i in range(z_bins)])
+
+    # SN / (observer year) within z_binedges
+    vol_snrate = np.zeros_like(z_binedges)
+    vol_snrate[1:] = np.add.accumulate(shell_snrate)
+
+    # Create a ppf (inverse cdf). We'll use this later to get
+    # a random SN redshift from the distribution.
+    snrate_cdf = vol_snrate / vol_snrate[-1]
+    snrate_ppf = Spline1d(snrate_cdf, z_binedges, k=1)
+
+    for i in xrange(nsim):
+        yield float(snrate_ppf(uniform()))
