@@ -499,8 +499,9 @@ class SurveyPlan( BaseObject ):
             if self.fields is None:
                 raise ValueError("Survey fields not defined.")
             else:
-                ra = self.fields.ra[field]
-                dec = self.fields.dec[field]
+                idx = self.fields.field_id_index[field]
+                ra = self.fields.ra[idx]
+                dec = self.fields.dec[idx]
         elif field is None:
             field = np.array([np.nan for r in ra])
 
