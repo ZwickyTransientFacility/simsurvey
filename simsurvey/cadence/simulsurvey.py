@@ -437,7 +437,7 @@ class SurveyPlan( BaseObject ):
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
                  obs_field=None, width=6.86, height=6.86, fields=None, empty=False,
-                 load_opsim=None):
+                 load_opsim=None, **kwargs):
         """
         Parameters:
         ----------
@@ -449,11 +449,12 @@ class SurveyPlan( BaseObject ):
             return
 
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field,fields=fields, load_opsim=load_opsim)
+                    obs_field=obs_field,fields=fields, load_opsim=load_opsim,
+                    **kwargs)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-               obs_field=None, width=7., height=7., fields=None, 
-               load_opsim=None):
+               obs_field=None, width=6.86, height=6.86, fields=None, 
+               load_opsim=None, **kwargs):
         """
         """
         self._properties["width"] = float(width)
@@ -465,7 +466,7 @@ class SurveyPlan( BaseObject ):
         if load_opsim is None:
             self.add_observation(time,band,skynoise,ra=ra,dec=dec,field=obs_field)
         else:
-            self.load_opsim(load_opsim)
+            self.load_opsim(load_opsim, **kwargs)
 
     # =========================== #
     # = Main Methods            = #
@@ -483,7 +484,7 @@ class SurveyPlan( BaseObject ):
         """
         kwargs["width"] = kwargs.get("width", self.width)
         kwargs["height"] = kwargs.get("height", self.height)
-
+        
         self._side_properties["fields"] = SurveyFieldBins(ra, dec, **kwargs)
 
         if self.cadence is not None and np.any(np.isnan(self.cadence['field'])):
@@ -521,7 +522,7 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     # - Load Method        - #
     # ---------------------- #
-    def load_opsim(self, filename, table_name="ptf", band_dict=None, zp=30):
+    def load_opsim(self, filename, table_name="Summary", band_dict=None, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -533,7 +534,7 @@ class SurveyPlan( BaseObject ):
         band_dict -- dictionary for converting filter names 
         zp -- zero point for converting sky brightness from mag to flux units
               (should match the zp used in instprop for SimulSurvey)
-        """
+        """        
         import sqlite3
         connection = sqlite3.connect(filename)
 
@@ -541,12 +542,15 @@ class SurveyPlan( BaseObject ):
         to_fetch = odict()
         to_fetch['time'] = 'expMJD'
         to_fetch['band_raw'] = 'filter' # Currently is a float not a string in Eric's example
-        to_fetch['filtskybrightness'] = 'filtSkyBrightness' # in mag/arcsec^2 
-        to_fetch['seeing'] = 'finSeeing' # effective FWHM used to calculate skynoise
+        #to_fetch['filtskybrightness'] = 'filtSkyBrightness' # in mag/arcsec^2 
+        #to_fetch['seeing'] = 'finSeeing' # effective FWHM used to calculate skynoise
         to_fetch['ra'] = 'fieldRA'
         to_fetch['dec'] = 'fieldDec'
         to_fetch['field'] = 'fieldID'
-
+        to_fetch['FWHMeff'] = 'FWHMeff'
+        to_fetch['dist2Moon'] = 'dist2Moon'
+        to_fetch['moonPhase'] = 'moonPhase'
+        
         loaded = odict()
         for key, value in to_fetch.items():
             # This is not safe against injection (but should be OK)
@@ -560,13 +564,15 @@ class SurveyPlan( BaseObject ):
         loaded['ra'] /= _d2r
         loaded['dec'] /= _d2r
 
-        # Calculate skynoise assuming that seeing is FWHM
-        if loaded['filtskybrightness'][0] is not None:
-            loaded['skynoise'] = 10 ** (-0.4*loaded['filtskybrightness'] + zp)
-            loaded['skynoise'] *= np.pi / 0.938 * loaded['seeing']
-        else:
-            loaded['skynoise'] = np.array([np.nan for a in loaded['time']])
+        # # Calculate skynoise assuming that seeing is FWHM
+        # if loaded['filtskybrightness'][0] is not None:
+        #     loaded['skynoise'] = 10 ** (-0.4*loaded['filtskybrightness'] + zp)
+        #     loaded['skynoise'] *= np.pi / 0.938 * loaded['seeing']
+        # else:
+        #     loaded['skynoise'] = np.array([np.nan for a in loaded['time']])
 
+        loaded['skynoise'] = np.array([800. for a in loaded['time']])
+        
         if band_dict is not None:
             loaded['band'] = [band_dict[band] for band in loaded['band_raw']]
         else:
