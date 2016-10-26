@@ -272,7 +272,6 @@ class SimulSurvey( BaseObject ):
         if not self.is_set():
             return
             
-    #def _load_observations_(self):
     def _get_observations_(self):
         """
         """
@@ -522,7 +521,8 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     # - Load Method        - #
     # ---------------------- #
-    def load_opsim(self, filename, table_name="Summary", band_dict=None, zp=30):
+    def load_opsim(self, filename, table_name="Summary", band_dict=None,
+                   default_depth=21, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -547,9 +547,7 @@ class SurveyPlan( BaseObject ):
         to_fetch['ra'] = 'fieldRA'
         to_fetch['dec'] = 'fieldDec'
         to_fetch['field'] = 'fieldID'
-        to_fetch['FWHMeff'] = 'FWHMeff'
-        to_fetch['dist2Moon'] = 'dist2Moon'
-        to_fetch['moonPhase'] = 'moonPhase'
+        to_fetch['depth'] = 'fiveSigmaDepth'
         
         loaded = odict()
         for key, value in to_fetch.items():
@@ -564,14 +562,10 @@ class SurveyPlan( BaseObject ):
         loaded['ra'] /= _d2r
         loaded['dec'] /= _d2r
 
-        # # Calculate skynoise assuming that seeing is FWHM
-        # if loaded['filtskybrightness'][0] is not None:
-        #     loaded['skynoise'] = 10 ** (-0.4*loaded['filtskybrightness'] + zp)
-        #     loaded['skynoise'] *= np.pi / 0.938 * loaded['seeing']
-        # else:
-        #     loaded['skynoise'] = np.array([np.nan for a in loaded['time']])
-
-        loaded['skynoise'] = np.array([800. for a in loaded['time']])
+        loaded['depth'] = np.array([(d if d is not None else default_depth)
+                                    for d in loaded['depth']])
+        
+        loaded['skynoise'] = 10 ** (-0.4 * (loaded['depth']-zp)) / 5
         
         if band_dict is not None:
             loaded['band'] = [band_dict[band] for band in loaded['band_raw']]
