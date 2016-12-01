@@ -601,7 +601,7 @@ class TransientGenerator( BaseObject ):
             return np.asarray(self._derived_properties['mwebmv'])
 
     def has_mwebmv(self):
-        return self.mwebmv_sfd98 is not None:
+        return self.mwebmv_sfd98 is not None
     
     @property
     def mwebmv_sfd98(self):
