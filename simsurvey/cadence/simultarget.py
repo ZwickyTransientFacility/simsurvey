@@ -253,7 +253,8 @@ class TransientGenerator( BaseObject ):
         for i in xrange(self.ntransient):
             yield dict(z=self.zcmb[i], t0=self.mjd[i],
                        ra=self.ra[i], dec=self.dec[i],
-                       mwebv_sfd98=self.mwebmv_sfd98[i], mwebv=self.mwebmv[i],
+                       mwebv_sfd98=self.mwebmv_sfd98[i] if self.has_mwebmv() else 0,
+                       mwebv=self.mwebmv[i],
                        **{p: v[i] for p, v in self.lightcurve.items()})
 
     # --------------------------- #
@@ -599,6 +600,9 @@ class TransientGenerator( BaseObject ):
         else:
             return np.asarray(self._derived_properties['mwebmv'])
 
+    def has_mwebmv(self):
+        return self.mwebmv_sfd98 is not None:
+    
     @property
     def mwebmv_sfd98(self):
         """Return 'true' MW E(B-V) 
