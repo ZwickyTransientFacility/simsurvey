@@ -9,12 +9,13 @@ from numpy.random import uniform, normal
 import sncosmo
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, Planck15
 
-from astrobject                      import BaseObject
-from astrobject                      import get_target
-from astrobject.utils.tools          import kwargs_extract,kwargs_update
-from astrobject.utils                import random
+from propobject import BaseObject
+from astrobject import get_target
+
+from utils       import random
+from utils.tools import kwargs_extract, kwargs_update
 
 _d2r = np.pi / 180
 
@@ -945,8 +946,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def lightcurve_Ia_basic(self,redshifts,model=None,
                             color_mean=0,color_sigma=0.1,
                             stretch_mean=0,stretch_sigma=1,
-                            #source="salt2",
-                            ):
+                            cosmo=Planck15):
         """
         """
         # ----------------
@@ -960,7 +960,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         for z in redshifts:
             self.model.set(z=z)
             mabs = normal(-19.3, 0.3)
-            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab')
+            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
             
         ntransient = len(redshifts)
@@ -987,11 +987,11 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
     
     def lightcurve_Ia_realistic(self,redshifts,model=None,
-                            mabs_mean = -19.3, mabs_sigma=0.12,
-                            color_mean=0,color_sigma=0.1,
-                            stretch_mean=(0.5,-1),stretch_sigma=(1,1),
-                            stretch_thr=0.75, alpha=0.13, beta=3
-                            ):
+                                mabs_mean = -19.3, mabs_sigma=0.12,
+                                color_mean=0,color_sigma=0.1,
+                                stretch_mean=(0.5,-1),stretch_sigma=(1,1),
+                                stretch_thr=0.75, alpha=0.13, beta=3,
+                                cosmo=Planck15):
         """
         stretch parameters assume bimodal distribution
         stretch_thr is a threshold for uniformly drawn number used to determine 
@@ -1021,7 +1021,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             self.model.set(z=z)
             mabs = normal(mabs_mean, mabs_sigma)
             mabs -= alpha*x1[k] - beta*c[k]
-            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab')
+            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
             
         ntransient = len(redshifts)
@@ -1056,7 +1056,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 #######################################
 def zdist_fixed_nsim(nsim, zmin, zmax, 
                      ratefunc=lambda z: 1.,
-                     cosmo=FlatLambdaCDM(H0=70.0, Om0=0.3)):
+                     cosmo=Planck15):
     """Generate a distribution of redshifts.
 
     Generates redshifts for a given number of tranisents with the correct
@@ -1076,8 +1076,7 @@ def zdist_fixed_nsim(nsim, zmin, zmax,
         comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.
         The default is a function that returns ``1.``.
     cosmo : `~astropy.cosmology.Cosmology`, optional
-        Cosmology used to determine volume. The default is a FlatLambdaCDM
-        cosmology with ``Om0=0.3``, ``H0=70.0``.
+        Cosmology used to determine volume. The default is Planck15.
 
     Examples
     --------

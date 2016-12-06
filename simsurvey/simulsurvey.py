@@ -10,17 +10,18 @@ from collections import OrderedDict as odict
 from itertools import izip
 
 import sncosmo
-from sncosmo.photdata                 import standardize_data, dict_to_array
-from astropy.table                    import Table, vstack
-from astropy.utils.console            import ProgressBar
+from sncosmo.photdata      import standardize_data, dict_to_array
+from astropy.table         import Table, vstack
+from astropy.utils.console import ProgressBar
 
-from astrobject                       import BaseObject
-from astrobject.utils.tools           import kwargs_update
-from astrobject.utils.plot.skybins    import SurveyField, SurveyFieldBins 
+from propobject import BaseObject
+
+from utils.tools   import kwargs_update
+from utils.skybins import SurveyField, SurveyFieldBins 
 
 _d2r = np.pi/180
 
-__all__ = ["SimulSurvey", "SurveyPlan", "LightcurveCollection"] # to be changed
+__all__ = ["SimulSurvey", "SurveyPlan", "LightcurveCollection"]
 
 #######################################
 #                                     #
@@ -30,7 +31,6 @@ __all__ = ["SimulSurvey", "SurveyPlan", "LightcurveCollection"] # to be changed
 class SimulSurvey( BaseObject ):
     """
     Basic survey object
-    (far from finished)
     """
     __nature__ = "SimulSurvey"
     
@@ -505,12 +505,14 @@ class SurveyPlan( BaseObject ):
         elif field is None:
             field = np.array([np.nan for r in ra])
 
-        new_obs = Table({"time": time,
-                         "band": band,
-                         "skynoise": skynoise,
-                         "RA": ra,
-                         "Dec": dec,
-                         "field": field})
+        new_obs = odict()
+        new_obs["time"] = time
+        new_obs["band"] = band
+        new_obs["skynoise"] = skynoise
+        new_obs["RA"] = ra
+        new_obs["Dec"] = dec
+        new_obs["field"] = field
+        new_obs = Table(new_obs)
 
         if self._properties["cadence"] is None:
             self._properties["cadence"] = new_obs
