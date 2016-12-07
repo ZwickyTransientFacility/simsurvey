@@ -524,8 +524,8 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     # - Load Method        - #
     # ---------------------- #
-    def load_opsim(self, filename, table_name="Summary", band_dict=None,
-                   default_depth=21, zp=30):
+    def load_opsim(self, filename, survey_table="Summary", field_table="Field",
+                   band_dict=None, default_depth=21, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -541,44 +541,45 @@ class SurveyPlan( BaseObject ):
         import sqlite3
         connection = sqlite3.connect(filename)
 
-        # define columns name and keys to be fetched
-        to_fetch = odict()
-        to_fetch['time'] = 'expMJD'
-        to_fetch['band_raw'] = 'filter' # Currently is a float not a string in Eric's example
-        #to_fetch['filtskybrightness'] = 'filtSkyBrightness' # in mag/arcsec^2 
-        #to_fetch['seeing'] = 'finSeeing' # effective FWHM used to calculate skynoise
-        to_fetch['ra'] = 'fieldRA'
-        to_fetch['dec'] = 'fieldDec'
-        to_fetch['field'] = 'fieldID'
-        to_fetch['depth'] = 'fiveSigmaDepth'
-        
-        loaded = odict()
-        for key, value in to_fetch.items():
-            # This is not safe against injection (but should be OK)
-            # TODO: Add function to sanitize input
-            cmd = 'SELECT %s from %s;'%(value, table_name)
-            tmp = connection.execute(cmd)
-            loaded[key] = np.array([a[0] for a in tmp])
+        def _fetch(keys, table):
+            loaded = odict()
+            for key in keys:
+                # This is not safe against injection (but should be OK)
+                # TODO: Add function to sanitize input
+                cmd = 'SELECT %s from %s;'%(key, table)
+                tmp = connection.execute(cmd)
+                loaded[key] = np.array([a[0] for a in tmp])
 
+            return loaded
+        
+        loaded = _fetch(['expMJD', 'filter', 'fieldRA', 'fieldDec',
+                         'fieldID', 'fiveSigmaDepth'],
+                        survey_table)
+        fields = fetch(['FieldID', 'FieldRA', 'FieldDec'],
+                       field_table)
+        
         connection.close()
 
-        loaded['ra'] /= _d2r
-        loaded['dec'] /= _d2r
+        loaded['FieldRA'] /= _d2r
+        loaded['FieldDec'] /= _d2r
 
-        loaded['depth'] = np.array([(d if d is not None else default_depth)
-                                    for d in loaded['depth']])
+        loaded['fiveSigmaDepth'] = np.array([(d if d is not None else default_depth)
+                                    for d in loaded['fiveSigmaDepth']])
         
-        loaded['skynoise'] = 10 ** (-0.4 * (loaded['depth']-zp)) / 5
+        loaded['skynoise'] = 10 ** (-0.4 * (loaded['fiveSigmaDepth']-zp)) / 5
         
         if band_dict is not None:
-            loaded['band'] = [band_dict[band] for band in loaded['band_raw']]
+            loaded['filter'] = [band_dict[band] for band in loaded['filter']]
         else:
-            loaded['band'] = loaded['band_raw']
+            loaded['filter'] = loaded['filter']
  
-        self.add_observation(loaded['time'],loaded['band'],loaded['skynoise'],
-                             ra=loaded['ra'],dec=loaded['dec'],
-                             field=loaded['field'])
+        self.add_observation(loaded['expMJD'],loaded['filter'],loaded['skynoise'],
+                             ra=loaded['FieldRA'],dec=loaded['FieldDec'],
+                             field=loaded['FieldID'])
 
+        self.set_fields(ra=fields['FieldRA'], dec=fields['FieldDec'],
+                        field_id=fields['FieldID'])
+        
     # ================================== #
     # = Observation time determination = #
     # ================================== #
