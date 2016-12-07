@@ -318,6 +318,7 @@ class SimulSurvey( BaseObject ):
         self._derived_properties["obs_fields"] = self.plan.get_obs_fields(
             self.generator.ra,
             self.generator.dec,
+            field_id=np.unique(self.cadence['field']),
             progress_bar=progress_bar,
             notebook=notebook
         )
@@ -581,12 +582,14 @@ class SurveyPlan( BaseObject ):
     # ================================== #
     # = Observation time determination = #
     # ================================== #
-    def get_obs_fields(self, ra, dec, progress_bar=False, notebook=False):
+    def get_obs_fields(self, ra, dec, field_id=None,
+                       progress_bar=False, notebook=False):
         """
         """
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
-            return self.fields.coord2field(ra, dec, progress_bar=progress_bar,
+            return self.fields.coord2field(ra, dec, field_id=field_id,
+                                           progress_bar=progress_bar,
                                            notebook=notebook)
         else:
             return None

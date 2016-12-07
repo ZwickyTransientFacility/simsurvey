@@ -481,14 +481,18 @@ class SurveyFieldBins( BaseBins ):
         return np.array([np.sum(f.coord_in_field(ra, dec)) 
                          for f in self.fields])
 
-    def coord2field(self, ra, dec, progress_bar=False, notebook=False):
+    def coord2field(self, ra, dec, field_id=None,
+                        progress_bar=False, notebook=False):
         """
         Return the lists of fields in which a list of coordinates fall.
         Keep in mind that the fields will likely overlap.
         """
         bo = []
-        gen = self.fields.values()
-
+        if field_id is None:
+            gen = self.fields.values()
+        else:
+            gen = [f for i, f in self.fields.items() if i in field_id]
+            
         if progress_bar:
             print "Determining field IDs for all objects"
             gen = ProgressBar(gen, ipython_widget=notebook)
