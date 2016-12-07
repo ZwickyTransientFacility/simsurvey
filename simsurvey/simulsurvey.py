@@ -555,13 +555,13 @@ class SurveyPlan( BaseObject ):
         loaded = _fetch(['expMJD', 'filter', 'fieldRA', 'fieldDec',
                          'fieldID', 'fiveSigmaDepth'],
                         survey_table)
-        fields = fetch(['FieldID', 'FieldRA', 'FieldDec'],
+        fields = _fetch(['fieldID', 'fieldRA', 'fieldDec'],
                        field_table)
         
         connection.close()
 
-        loaded['FieldRA'] /= _d2r
-        loaded['FieldDec'] /= _d2r
+        loaded['fieldRA'] /= _d2r
+        loaded['fieldDec'] /= _d2r
 
         loaded['fiveSigmaDepth'] = np.array([(d if d is not None else default_depth)
                                     for d in loaded['fiveSigmaDepth']])
@@ -574,11 +574,11 @@ class SurveyPlan( BaseObject ):
             loaded['filter'] = loaded['filter']
  
         self.add_observation(loaded['expMJD'],loaded['filter'],loaded['skynoise'],
-                             ra=loaded['FieldRA'],dec=loaded['FieldDec'],
-                             field=loaded['FieldID'])
+                             ra=loaded['fieldRA'],dec=loaded['fieldDec'],
+                             field=loaded['fieldID'])
 
-        self.set_fields(ra=fields['FieldRA'], dec=fields['FieldDec'],
-                        field_id=fields['FieldID'])
+        self.set_fields(ra=fields['fieldRA'], dec=fields['fieldDec'],
+                        field_id=fields['fieldID'])
         
     # ================================== #
     # = Observation time determination = #
