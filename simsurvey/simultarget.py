@@ -15,7 +15,7 @@ from propobject import BaseObject
 from astrobject import get_target
 
 from utils       import random
-from utils.tools import kwargs_extract, kwargs_update
+from utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
@@ -113,9 +113,9 @@ class TransientGenerator( BaseObject ):
                                       type_=type_, ntransient=ntransient,
                                       update=False,**transientprop)
 
-        self.set_err_mwebv(err_mwebv)
         self.set_sfd98_dir(sfd98_dir)
-
+        self.set_err_mwebv(err_mwebv)
+        
         self._update_()
 
     # =========================== #
@@ -249,10 +249,9 @@ class TransientGenerator( BaseObject ):
 
         return np.array(out)
 
-    def get_lightcurve_full_param(self):
+    def get_lightcurve_full_param(self, *args):
         """Transient lightcurve parameters"""
-
-        for i in xrange(self.ntransient):
+        for i in xrange(*range_args(self.ntransient, *args)):
             yield dict(z=self.zcmb[i], t0=self.mjd[i],
                        ra=self.ra[i], dec=self.dec[i],
                        mwebv_sfd98=(self.mwebv_sfd98[i]
@@ -449,13 +448,13 @@ class TransientGenerator( BaseObject ):
             import sfdmap
             self._derived_properties["mwebv_sfd98"] = sfdmap.ebv(
                 self.ra, self.dec,
-                map_dir=self._sfd98_dir
+                mapdir=self._sfd98_dir
             )
         except ImportError:
             warnings.warn("sfdmap is not installed. "
                           "MW E(B-V) will be set to zero.")
         except IOError:
-            warnings.warn("SFD98 dust map fiels not found. "
+            warnings.warn("SFD98 dust map files not found. "
                           "MW E(B-V) will be set to zero.")
 
         if self._derived_properties["mwebv_sfd98"] is not None:
@@ -646,11 +645,7 @@ class TransientGenerator( BaseObject ):
 
     @property
     def _sfd98_dir(self):
-        """Director where the maps are. Default option set"""
-        if self._side_properties["sfd98_dir"] is None:
-            from astrobject.utils.io import get_default_sfd98_dir
-            self._side_properties["sfd98_dir"] = get_default_sfd98_dir(download_if_needed=True)
-    
+        """Directory where the dust maps are located"""
         return self._side_properties["sfd98_dir"]
 
     def set_sfd98_dir(self, value):

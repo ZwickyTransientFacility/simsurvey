@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 """This module gather the basic tools used in a lot of methods"""
 
+import warnings
 import numpy as np
 
 __all__ = ["kwargs_update", "kwargs_extract",
+           "range_args", "range_length",
            "load_pkl", "dump_pkl"]
 
 
@@ -35,6 +37,40 @@ def kwargs_extract(default,**kwargs):
 
     return k, l
 
+def range_args(n_max, *args):
+    """Process args similar to those range(), i.e. (start, end, step)
+    but provide n_max to limit end
+    """
+    if len(args) == 0:
+        start, end, step = 0, n_max, 1
+    elif len(args) == 1:
+        start, end, step = 0, args[0], 1
+    elif len(args) == 2:
+        start, end, step = args[0], args[1], 1
+    elif len(args) == 3:
+        start, end, step = args
+    else:
+        raise TypeError('range_args requires 1-4 int arguments')
+        
+    if end > n_max:
+        end = n_max
+        warnings.warn('only %i items were available'%n_max)
+
+    return start, end, step
+
+def range_length(start, end, step):
+    if step > 0:
+        lo, hi = start, end
+    else:
+        hi, lo = start, end
+        step = -step
+
+    if lo >= hi:
+        return 0
+    else:
+        return (hi - lo - 1) // step + 1
+    
+    
 # --------------------------- #
 # - I/O Tools               - #
 # --------------------------- #

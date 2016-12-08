@@ -11,12 +11,12 @@ from itertools import izip
 
 import sncosmo
 from sncosmo.photdata      import standardize_data, dict_to_array
-from astropy.table         import Table, vstack
+from astropy.table         import Table, vstack, hstack
 from astropy.utils.console import ProgressBar
 
 from propobject import BaseObject
 
-from utils.tools   import kwargs_update
+from utils.tools   import kwargs_update, range_args, range_length
 from utils.skybins import SurveyField, SurveyFieldBins 
 
 _d2r = np.pi/180
@@ -34,9 +34,11 @@ class SimulSurvey( BaseObject ):
     """
     __nature__ = "SimulSurvey"
     
-    PROPERTIES         = ["generator","instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence","blinded_bias"]
-    DERIVED_PROPERTIES = ["obs_fields", "non_field_obs", "non_field_obs_exist"]
+    PROPERTIES         = ["generator", "instruments","plan"]
+    SIDE_PROPERTIES    = ["cadence", "blinded_bias"]
+    DERIVED_PROPERTIES = ["obs_fields", "obs_ccd",
+                          "non_field_obs", "non_field_obs_ccd",
+                          "non_field_obs_exist"]
 
     def __init__(self,generator=None, plan=None,
                  instprop=None, blinded_bias=None,
@@ -75,28 +77,34 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Get Methods        - #
     # ---------------------- #
-    def get_lightcurves(self, progress_bar=False, notebook=False):
+    def get_lightcurves(self, *args, **kwargs):
         """
         """
+        args = range_args(self.generator.ntransient, *args)
+        progress_bar = kwargs.pop('progress_bar', False)
+        notebook = kwargs.pop('notebook', False)
+
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
 
         lcs = LightcurveCollection(empty=True)
-        gen = izip(self.generator.get_lightcurve_full_param(),
-                   self._get_observations_())
+        gen = izip(xrange(*args),
+                   self.generator.get_lightcurve_full_param(*args),
+                   self._get_observations_(*args))
+
         if progress_bar:
             self._assign_obs_fields_(progress_bar=True, notebook=notebook)
             self._assign_non_field_obs_(progress_bar=True, notebook=notebook)
             
             print 'Generating lightcurves'
-            with ProgressBar(self.generator.ntransient,
-                             ipython_widget=notebook) as bar:
-                for k, (p, obs) in enumerate(gen):
+            ntransient = range_length(*args)
+            with ProgressBar(ntransient, ipython_widget=notebook) as bar:
+                for k, p, obs in gen:
                     if obs is not None:
                         lcs.add(self._get_lightcurve_(p, obs, k))
                     bar.update()
         else:
-            for k, (p, obs) in enumerate(gen):
+            for k, p, obs in gen:
                 if obs is not None:
                     lcs.add(self._get_lightcurve_(p, obs, k))
 
@@ -112,6 +120,9 @@ class SimulSurvey( BaseObject ):
             lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                      scatter=False)[0]
 
+            lc = hstack((lc, obs['field', 'ccd']))
+            print lc
+            
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
             fluxerr = np.sqrt(obs['skynoise']**2 +
@@ -272,9 +283,9 @@ class SimulSurvey( BaseObject ):
         if not self.is_set():
             return
             
-    def _get_observations_(self):
+    def _get_observations_(self, *args):
         """
-        """
+        """  
         # -------------
         # - Input test
         if self.plan is None or self.instruments is None:
@@ -297,17 +308,20 @@ class SimulSurvey( BaseObject ):
 
         # -----------------------
         # - Let's build the tables
-        for f, n, d0, d1 in zip(self.obs_fields, self.non_field_obs,
-                                mjd_range[0], mjd_range[1]):
-            obs = self.plan.observed_on(f, n, (d0, d1))
-            if len(obs) > 0: 
+        for k in xrange(*range_args(self.generator.ntransient, *args)):
+            obs = self.plan.observed_on(self.obs_fields[k],
+                                        self.non_field_obs[k],
+                                        (mjd_range[0][k], mjd_range[1][k]))
+            if len(obs) > 0:
                 yield Table(
                     {"time": obs["time"],
                      "band": obs["band"],
                      "skynoise": obs["skynoise"],
-                     "gain":[self.instruments[b]["gain"] for b in obs["band"]],
-                     "zp":[self.instruments[b]["zp"] for b in obs["band"]],
-                     "zpsys":[self.instruments[b]["zpsys"] for b in obs["band"]]}
+                     "gain": [self.instruments[b]["gain"] for b in obs["band"]],
+                     "zp": [self.instruments[b]["zp"] for b in obs["band"]],
+                     "zpsys": [self.instruments[b]["zpsys"] for b in obs["band"]],
+                     "field": obs["field"],
+                     "ccd": [0 for b in obs["band"]]}
                 )
             else:
                 yield None
@@ -506,25 +520,19 @@ class SurveyPlan( BaseObject ):
         elif field is None:
             field = np.array([np.nan for r in ra])
 
-        new_obs = odict()
-        new_obs["time"] = time
-        new_obs["band"] = band
-        new_obs["skynoise"] = skynoise
-        new_obs["RA"] = ra
-        new_obs["Dec"] = dec
-        new_obs["field"] = field
-        new_obs = Table(new_obs)
+        new_obs = Table(data=[time, band, skynoise, ra, dec, field],
+                        names=['time', 'band', 'skynoise', 'RA', 'Dec', 'field'])
 
-        if self._properties["cadence"] is None:
-            self._properties["cadence"] = new_obs
+        if self._properties['cadence'] is None:
+            self._properties['cadence'] = new_obs
         else:
-            self._properties["cadence"] = vstack((self._properties["cadence"], 
+            self._properties['cadence'] = vstack((self._properties['cadence'], 
                                                   new_obs))
 
     # ---------------------- #
     # - Load Method        - #
     # ---------------------- #
-    def load_opsim(self, filename, survey_table="Summary", field_table="Field",
+    def load_opsim(self, filename, survey_table='Summary', field_table='Field',
                    band_dict=None, default_depth=21, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
@@ -641,7 +649,7 @@ class SurveyPlan( BaseObject ):
         if fields is None and non_field is None:
             raise ValueError("Provide arrays of fields and/or other pointings") 
 
-        out = {'time': [], 'band': [], 'skynoise': []}
+        out = {'time': [], 'band': [], 'skynoise': [], 'field': []}
         if fields is not None:
             for l in fields:
                 mask = (self.cadence['field'] == l)
@@ -649,6 +657,7 @@ class SurveyPlan( BaseObject ):
                 out['band'].extend(self.cadence['band'][mask])
                 out['skynoise'].extend(self.cadence['skynoise']
                                        [mask].quantity.value)
+                out['field'].extend(l*np.ones(np.sum(mask), dtype=int))
 
         if non_field is not None:
             mask = np.isnan(self.cadence["field"])
@@ -656,7 +665,7 @@ class SurveyPlan( BaseObject ):
             out['band'].extend(self.cadence['band'][mask][non_field])
             out['skynoise'].extend(self.cadence['skynoise']
                                    [mask][non_field].quantity.value)
-
+            out['field'].extend(np.nan*np.ones(np.sum(mask), dtype=int))
         
         table = Table(out, meta={})
         idx = np.argsort(table['time'])
@@ -780,7 +789,7 @@ class LightcurveCollection( BaseObject ):
     # - Add Methods        - #
     # ---------------------- #
 
-    def _add_lcs_(self, lcs):
+    def _add_lcs_(self, lcs, ):
         """
         """
         if self.lcs is None:
@@ -788,10 +797,15 @@ class LightcurveCollection( BaseObject ):
 
         if type(lcs) is list:
             for lc in lcs:
-                self._properties['lcs'].append(standardize_data(lc))
+                self._add_lc_(lc)
         else:
-            self._properties['lcs'].append(standardize_data(lcs))
+            self._add_lc_(lc)
 
+    def _add_lc_(self, lc):
+        """
+        """
+        self._properties['lcs'].append(standardize_data(lc))
+            
     def _add_meta_(self, meta):
         """
         """
