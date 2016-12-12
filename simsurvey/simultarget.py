@@ -9,12 +9,13 @@ from numpy.random import uniform, normal
 import sncosmo
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, Planck15
 
-from astrobject                      import BaseObject
-from astrobject                      import get_target
-from astrobject.utils.tools          import kwargs_extract,kwargs_update
-from astrobject.utils                import random
+from propobject import BaseObject
+# from astrobject import get_target
+
+from utils       import random
+from utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
@@ -68,9 +69,9 @@ class TransientGenerator( BaseObject ):
 
     PROPERTIES         = ["transient_coverage",
                           "event_coverage"]
-    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebmv"]
-    DERIVED_PROPERTIES = ["simul_parameters", "mwebmv", "mwebmv_sfd98", 
-                          "lightcurve_parameters"]
+    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv"]
+    DERIVED_PROPERTIES = ["simul_parameters", "mwebv", "mwebv_sfd98", 
+                          "has_mwebv_sfd98", "lightcurve_parameters"]
 
     def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,# How deep
                  mjd_range=[57754.0,58849.0],
@@ -93,7 +94,7 @@ class TransientGenerator( BaseObject ):
                ntransient=None,type_=None,
                mjd_range=[57754.0,58849.0],
                ra_range=(-180,180),dec_range=(-90,90),
-               mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebmv=0.01):
+               mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebv=0.01):
         """
         """
         # == Add the Input Test == #
@@ -112,8 +113,9 @@ class TransientGenerator( BaseObject ):
                                       type_=type_, ntransient=ntransient,
                                       update=False,**transientprop)
 
-        self.set_err_mwebmv(err_mwebmv)
-
+        self.set_sfd98_dir(sfd98_dir)
+        self.set_err_mwebv(err_mwebv)
+        
         self._update_()
 
     # =========================== #
@@ -207,28 +209,28 @@ class TransientGenerator( BaseObject ):
     # --------------------------- #
     # - Get Methods             - #
     # --------------------------- #
-    def get_transients(self,index=None,pass_mwebmv=True):
-        """loops over the transientsources to load the transients objects.
-        This method could be a bit slow..."""
-        return [get_target(**s) for s in self.get_transientsource(index, pass_mwebmv)]
+    # def get_transients(self,index=None,pass_mwebv=True):
+    #     """loops over the transientsources to load the transients objects.
+    #     This method could be a bit slow..."""
+    #     return [get_target(**s) for s in self.get_transientsource(index, pass_mwebv)]
 
-    def get_transientsource(self,index=None,pass_mwebmv=True):
-        """dictionary containing the fundamental parameters that enable to
-        load the transient objects"""
-        if index is not None and "__iter__" not in dir(index):
-            index = [index]
+    # def get_transientsource(self,index=None,pass_mwebv=True):
+    #     """dictionary containing the fundamental parameters that enable to
+    #     load the transient objects"""
+    #     if index is not None and "__iter__" not in dir(index):
+    #         index = [index]
 
-        # If self.mwebmv remains None, something went wrong and
-        # pass_mwebmb is set to None. This should already have
-        # resulted in a warning, no need for another one.
-        if pass_mwebmv and self.mwebmv is None:
-            pass_mwebmv = False
+    #     # If self.mwebv remains None, something went wrong and
+    #     # pass_mwebmb is set to None. This should already have
+    #     # resulted in a warning, no need for another one.
+    #     if pass_mwebv and self.mwebv is None:
+    #         pass_mwebv = False
 
-        return [dict(name="simul%d"%i,ra=self.ra[i],dec=self.dec[i], zcmb=self.zcmb[i],
-                     mjd=self.mjd[i],type_=self.transient_coverage["transienttype"],
-                     lightcurve=None,
-                     forced_mwebmv=(self.mwebmv[i] if pass_mwebmv else None))
-                for i in xrange(self.ntransient) if index is None or i in index]
+    #     return [dict(name="simul%d"%i,ra=self.ra[i],dec=self.dec[i], zcmb=self.zcmb[i],
+    #                  mjd=self.mjd[i],type_=self.transient_coverage["transienttype"],
+    #                  lightcurve=None,
+    #                  forced_mwebv=(self.mwebv[i] if pass_mwebv else None))
+    #             for i in xrange(self.ntransient) if index is None or i in index]
 
     def get_bandmag(self, band='bessellb', magsys='vega', t=0):
         """
@@ -247,14 +249,15 @@ class TransientGenerator( BaseObject ):
 
         return np.array(out)
 
-    def get_lightcurve_full_param(self):
+    def get_lightcurve_full_param(self, *args):
         """Transient lightcurve parameters"""
-
-        for i in xrange(self.ntransient):
+        for i in xrange(*range_args(self.ntransient, *args)):
             yield dict(z=self.zcmb[i], t0=self.mjd[i],
                        ra=self.ra[i], dec=self.dec[i],
-                       mwebv_sfd98=self.mwebmv_sfd98[i] if self.has_mwebmv() else 0,
-                       mwebv=self.mwebmv[i],
+                       mwebv_sfd98=(self.mwebv_sfd98[i]
+                                    if self.has_mwebv_sfd98 else 0),
+                       mwebv=(self.mwebv[i]
+                              if self.has_mwebv_sfd98 else 0),
                        **{p: v[i] for p, v in self.lightcurve.items()})
 
     # --------------------------- #
@@ -432,7 +435,7 @@ class TransientGenerator( BaseObject ):
                        ra_range=self.ra_range,
                        dec_range=self.dec_range,
                        mw_exclusion=self._get_event_property_("mw_exclusion"))
-        self._derived_properties['mwebmv'] = None
+        self._derived_properties['mwebv'] = None
 
         if "lightcurve_prop" in self.transient_coverage.keys():
             lc = self.transient_coverage["lightcurve_prop"]
@@ -440,18 +443,31 @@ class TransientGenerator( BaseObject ):
                                      **lc["param_func_kwargs"])
             self._derived_properties["simul_parameters"]["lightcurve"] = param 
 
-    def _update_mwebmv_sfd98_(self):
+    def _update_mwebv_sfd98_(self):
         try:
-            m = sncosmo.SFD98Map(mapdir=self._sfd98_dir)
-            self._derived_properties["mwebmv_sfd98"] = m.get_ebv((self.ra, self.dec))
+            import sfdmap
+            self._derived_properties["mwebv_sfd98"] = sfdmap.ebv(
+                self.ra, self.dec,
+                mapdir=self._sfd98_dir
+            )
+        except ImportError:
+            warnings.warn("sfdmap is not installed. "
+                          "MW E(B-V) will be set to zero.")
         except IOError:
-            warnings.warn("MW E(B-V) could not be fetched. Please set sfd98_dir to the map directory.")
+            warnings.warn("SFD98 dust map files not found. "
+                          "MW E(B-V) will be set to zero.")
 
-    def _update_mwebmv_(self):
-        self._derived_properties["mwebmv"] = self.mwebmv_sfd98.copy()
-        off = self.err_mwebmv * np.random.randn(self.ntransient)
-        self._derived_properties["mwebmv"] += off
-                 
+        if self._derived_properties["mwebv_sfd98"] is not None:
+            self._derived_properties["has_mwebv_sfd98"] = True
+        else:
+            self._derived_properties["has_mwebv_sfd98"] = False
+
+    def _update_mwebv_(self):
+        if self.has_mwebv_sfd98:
+            self._derived_properties["mwebv"] = self.mwebv_sfd98.copy()
+            off = self.err_mwebv * np.random.randn(self.ntransient)
+            self._derived_properties["mwebv"] += off
+        
     def _update_(self):
         """This module create the derived values based on the
         fundamental ones"""
@@ -459,6 +475,9 @@ class TransientGenerator( BaseObject ):
         # - update the actual simulation
         self._update_simulation_()        
 
+    def _reset_mwebv_(self):
+        self._derived_properties['mwebv_sfd98'] = None
+        self._derived_properties['mwebv'] = None
         
     def _simulate_mjd_(self):
         """
@@ -587,51 +606,52 @@ class TransientGenerator( BaseObject ):
     # - derived transient info
 
     @property
-    def mwebmv(self):
+    def mwebv(self):
         """Return MW E(B-V) 
         (if None or not up to date fetch from SFD98 map, and perturb)"""
-        if self._derived_properties['mwebmv'] is None:
-            self._update_mwebmv_()
+        if self._derived_properties['mwebv'] is None:
+            self._update_mwebv_()
         
         # if it is still None after update, some thing went wrong
         # likely map files were missing or in wrong directory
-        if self._derived_properties['mwebmv'] is None:
+        if self._derived_properties['mwebv'] is None:
             return None
         else:
-            return np.asarray(self._derived_properties['mwebmv'])
+            return np.asarray(self._derived_properties['mwebv'])
 
-    def has_mwebmv(self):
-        return self.mwebmv_sfd98 is not None
+    @property
+    def has_mwebv_sfd98(self):
+        if self._derived_properties['has_mwebv_sfd98'] is None:
+            self._update_mwebv_sfd98_()
+            
+        return self._derived_properties['has_mwebv_sfd98']
     
     @property
-    def mwebmv_sfd98(self):
+    def mwebv_sfd98(self):
         """Return 'true' MW E(B-V) 
         (if None or not up to date fetch from SFD98 map)"""
-        if self._derived_properties['mwebmv_sfd98'] is None:
-            self._update_mwebmv_sfd98_()
+        if self._derived_properties['mwebv_sfd98'] is None:
+            self._update_mwebv_sfd98_()
         
         # if it is still None after update, some thing went wrong
         # likely map files were missing or in wrong directory
-        if self._derived_properties['mwebmv_sfd98'] is None:
+        if self._derived_properties['mwebv_sfd98'] is None:
             return None
         else:
-            return np.asarray(self._derived_properties['mwebmv_sfd98'])
+            return np.asarray(self._derived_properties['mwebv_sfd98'])
     
     # ------------------
     # - Side properties
 
     @property
     def _sfd98_dir(self):
-        """Director where the maps are. Default option set"""
-        if self._side_properties["sfd98_dir"] is None:
-            from astrobject.utils.io import get_default_sfd98_dir
-            self._side_properties["sfd98_dir"] = get_default_sfd98_dir(download_if_needed=True)
-    
+        """Directory where the dust maps are located"""
         return self._side_properties["sfd98_dir"]
 
     def set_sfd98_dir(self, value):
+        """Clears fetched values for MW E(B-V)"""
         self._side_properties['sfd98_dir'] = value
-        self._update_mwebmv_()
+        self._reset_mwebv_()
 
     @property
     def model(self):
@@ -663,14 +683,14 @@ class TransientGenerator( BaseObject ):
         self._side_properties["model"] = None
 
     @property
-    def err_mwebmv(self):
+    def err_mwebv(self):
         """Assumed error of dustmap; will be applied to lightcurve creation"""
-        return self._properties["err_mwebmv"]
+        return self._properties["err_mwebv"]
 
-    def set_err_mwebmv(self, err):
+    def set_err_mwebv(self, err):
         """
         """
-        self._properties['err_mwebmv'] = err
+        self._properties['err_mwebv'] = err
 
     # -----------------------
     # - LightCuve Properties
@@ -945,8 +965,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def lightcurve_Ia_basic(self,redshifts,model=None,
                             color_mean=0,color_sigma=0.1,
                             stretch_mean=0,stretch_sigma=1,
-                            #source="salt2",
-                            ):
+                            cosmo=Planck15):
         """
         """
         # ----------------
@@ -960,7 +979,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         for z in redshifts:
             self.model.set(z=z)
             mabs = normal(-19.3, 0.3)
-            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab')
+            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
             
         ntransient = len(redshifts)
@@ -987,11 +1006,11 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
     
     def lightcurve_Ia_realistic(self,redshifts,model=None,
-                            mabs_mean = -19.3, mabs_sigma=0.12,
-                            color_mean=0,color_sigma=0.1,
-                            stretch_mean=(0.5,-1),stretch_sigma=(1,1),
-                            stretch_thr=0.75, alpha=0.13, beta=3
-                            ):
+                                mabs_mean = -19.3, mabs_sigma=0.12,
+                                color_mean=0,color_sigma=0.1,
+                                stretch_mean=(0.5,-1),stretch_sigma=(1,1),
+                                stretch_thr=0.75, alpha=0.13, beta=3,
+                                cosmo=Planck15):
         """
         stretch parameters assume bimodal distribution
         stretch_thr is a threshold for uniformly drawn number used to determine 
@@ -1021,7 +1040,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             self.model.set(z=z)
             mabs = normal(mabs_mean, mabs_sigma)
             mabs -= alpha*x1[k] - beta*c[k]
-            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab')
+            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
             
         ntransient = len(redshifts)
@@ -1056,7 +1075,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 #######################################
 def zdist_fixed_nsim(nsim, zmin, zmax, 
                      ratefunc=lambda z: 1.,
-                     cosmo=FlatLambdaCDM(H0=70.0, Om0=0.3)):
+                     cosmo=Planck15):
     """Generate a distribution of redshifts.
 
     Generates redshifts for a given number of tranisents with the correct
@@ -1076,8 +1095,7 @@ def zdist_fixed_nsim(nsim, zmin, zmax,
         comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.
         The default is a function that returns ``1.``.
     cosmo : `~astropy.cosmology.Cosmology`, optional
-        Cosmology used to determine volume. The default is a FlatLambdaCDM
-        cosmology with ``Om0=0.3``, ``H0=70.0``.
+        Cosmology used to determine volume. The default is Planck15.
 
     Examples
     --------
