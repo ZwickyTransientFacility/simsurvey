@@ -491,7 +491,7 @@ class SurveyFieldBins( BaseBins ):
         """
         bo = []
         if self.ccds is not None:
-            ccds = []
+            c = []
 
         if field_id is None:
             gen = self.fields.values()
@@ -502,20 +502,23 @@ class SurveyFieldBins( BaseBins ):
             print "Determining field IDs for all objects"
             gen = ProgressBar(gen, ipython_widget=notebook)
 
-            for f in gen:
-                b_, c_ = f.coord_in_field(ra, dec, ccds=self.ccds)
-                bo.append(b_)
-                if self.ccds is not None:
-                    ccds.append(c_)
-                
+        for f in gen:
+            b_, c_ = f.coord_in_field(ra, dec, ccds=self.ccds)
+            bo.append(b_)
+            if self.ccds is not None:
+                c.append(c_)
+
         # Handle the single coordinate case first
         if type(bo[0]) is np.bool_:
             return self.field_id[np.where(np.array(bo))[0]]
         
         bo = np.array(bo)
+        c = np.array(c)
         fields = [self.field_id[np.where(bo[:,k])[0]]
                   for k in xrange(bo.shape[1])]
         if self.ccds is not None:
+            ccds = [np.array(c[:,k][~np.isnan(c[:,k])], dtype=int)
+                    for k in xrange(c.shape[1])]
             return fields, ccds
         return fields, None
 
@@ -701,9 +704,10 @@ class SurveyField( BaseObject ):
                       for ccd in c])
         on_ccd = np.array([np.any(b[:,k]) for k in xrange(b.shape[1])])
         mask[mask] = on_ccd
-        n_ccd = np.array([np.where(b[:,k])[0]
-                          for k in np.where(on_ccd)[0]])
-
+        n_ccd = np.nan * np.ones(len(mask))
+        n_ccd[mask] = np.array([np.where(b[:,k])[0]
+                                for k in np.where(on_ccd)[0]])
+        
         if single_val:
             return mask[0], n_ccd[0]
         return mask, n_ccd

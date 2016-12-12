@@ -321,19 +321,14 @@ class SimulSurvey( BaseObject ):
                                          else None),
                                         (mjd_range[0][k], mjd_range[1][k]))
 
-            data = [obs["time"], obs["band"], obs["skynoise"],
-                    [self.instruments[b]["gain"] for b in obs["band"]],
+            
+            data = [[self.instruments[b]["gain"] for b in obs["band"]],
                     [self.instruments[b]["zp"] for b in obs["band"]],
-                    [self.instruments[b]["zpsys"] for b in obs["band"]],
-                    obs["field"]]
-            names = ["time", "band", "skynoise", "gain",
-                     "zp", "zpsys", "field"]
-            if "ccds" in obs.keys():
-                data.append("ccd")
-                names.append(obs["ccds"])
+                    [self.instruments[b]["zpsys"] for b in obs["band"]]]
+            names = ["gain", "zp", "zpsys"]
             
             if len(obs) > 0:
-                yield Table(data=data, names=names)
+                yield hstack((obs,Table(data=data, names=names)))
             else:
                 yield None
 
@@ -693,12 +688,9 @@ class SurveyPlan( BaseObject ):
 
         out = {'time': [], 'band': [], 'skynoise': [], 'field': []}
 
-        #print fields
-        #print ccds
-        
         if ccds is not None:
             out['ccd'] = []
-        
+            
         if fields is not None:
             for k, l in enumerate(fields):
                 mask = (self.cadence['field'] == l)
