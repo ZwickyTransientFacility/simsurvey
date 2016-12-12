@@ -12,7 +12,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from astropy.cosmology import FlatLambdaCDM, Planck15
 
 from propobject import BaseObject
-from astrobject import get_target
+# from astrobject import get_target
 
 from utils       import random
 from utils.tools import kwargs_extract, kwargs_update, range_args
@@ -209,28 +209,28 @@ class TransientGenerator( BaseObject ):
     # --------------------------- #
     # - Get Methods             - #
     # --------------------------- #
-    def get_transients(self,index=None,pass_mwebv=True):
-        """loops over the transientsources to load the transients objects.
-        This method could be a bit slow..."""
-        return [get_target(**s) for s in self.get_transientsource(index, pass_mwebv)]
+    # def get_transients(self,index=None,pass_mwebv=True):
+    #     """loops over the transientsources to load the transients objects.
+    #     This method could be a bit slow..."""
+    #     return [get_target(**s) for s in self.get_transientsource(index, pass_mwebv)]
 
-    def get_transientsource(self,index=None,pass_mwebv=True):
-        """dictionary containing the fundamental parameters that enable to
-        load the transient objects"""
-        if index is not None and "__iter__" not in dir(index):
-            index = [index]
+    # def get_transientsource(self,index=None,pass_mwebv=True):
+    #     """dictionary containing the fundamental parameters that enable to
+    #     load the transient objects"""
+    #     if index is not None and "__iter__" not in dir(index):
+    #         index = [index]
 
-        # If self.mwebv remains None, something went wrong and
-        # pass_mwebmb is set to None. This should already have
-        # resulted in a warning, no need for another one.
-        if pass_mwebv and self.mwebv is None:
-            pass_mwebv = False
+    #     # If self.mwebv remains None, something went wrong and
+    #     # pass_mwebmb is set to None. This should already have
+    #     # resulted in a warning, no need for another one.
+    #     if pass_mwebv and self.mwebv is None:
+    #         pass_mwebv = False
 
-        return [dict(name="simul%d"%i,ra=self.ra[i],dec=self.dec[i], zcmb=self.zcmb[i],
-                     mjd=self.mjd[i],type_=self.transient_coverage["transienttype"],
-                     lightcurve=None,
-                     forced_mwebv=(self.mwebv[i] if pass_mwebv else None))
-                for i in xrange(self.ntransient) if index is None or i in index]
+    #     return [dict(name="simul%d"%i,ra=self.ra[i],dec=self.dec[i], zcmb=self.zcmb[i],
+    #                  mjd=self.mjd[i],type_=self.transient_coverage["transienttype"],
+    #                  lightcurve=None,
+    #                  forced_mwebv=(self.mwebv[i] if pass_mwebv else None))
+    #             for i in xrange(self.ntransient) if index is None or i in index]
 
     def get_bandmag(self, band='bessellb', magsys='vega', t=0):
         """

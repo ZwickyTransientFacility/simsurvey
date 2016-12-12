@@ -10,7 +10,7 @@ from collections import OrderedDict as odict
 from itertools import izip
 
 import sncosmo
-from sncosmo.photdata      import standardize_data, dict_to_array
+from sncosmo.photdata      import dict_to_array
 from astropy.table         import Table, vstack, hstack
 from astropy.utils.console import ProgressBar
 
@@ -120,9 +120,11 @@ class SimulSurvey( BaseObject ):
             lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                      scatter=False)[0]
 
-            lc = hstack((lc, obs['field', 'ccd']))
-            print lc
-            
+            if 'field' in obs.colnames:
+                lc = hstack((lc, obs[('field',)]))
+            if 'ccd' in obs.colnames:
+                lc = hstack((lc, obs[('ccd',)]))
+                
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
             fluxerr = np.sqrt(obs['skynoise']**2 +
@@ -310,52 +312,67 @@ class SimulSurvey( BaseObject ):
         # - Let's build the tables
         for k in xrange(*range_args(self.generator.ntransient, *args)):
             obs = self.plan.observed_on(self.obs_fields[k],
+                                        (self.obs_ccds[k]
+                                         if self.obs_ccds is not None
+                                         else None),
                                         self.non_field_obs[k],
+                                        (self.non_field_obs_ccds[k]
+                                         if self.non_field_obs_ccds is not None
+                                         else None),
                                         (mjd_range[0][k], mjd_range[1][k]))
+
+            data = [obs["time"], obs["band"], obs["skynoise"],
+                    [self.instruments[b]["gain"] for b in obs["band"]],
+                    [self.instruments[b]["zp"] for b in obs["band"]],
+                    [self.instruments[b]["zpsys"] for b in obs["band"]],
+                    obs["field"]]
+            names = ["time", "band", "skynoise", "gain",
+                     "zp", "zpsys", "field"]
+            if "ccds" in obs.keys():
+                data.append("ccd")
+                names.append(obs["ccds"])
+            
             if len(obs) > 0:
-                yield Table(
-                    {"time": obs["time"],
-                     "band": obs["band"],
-                     "skynoise": obs["skynoise"],
-                     "gain": [self.instruments[b]["gain"] for b in obs["band"]],
-                     "zp": [self.instruments[b]["zp"] for b in obs["band"]],
-                     "zpsys": [self.instruments[b]["zpsys"] for b in obs["band"]],
-                     "field": obs["field"],
-                     "ccd": [0 for b in obs["band"]]}
-                )
+                yield Table(data=data, names=names)
             else:
                 yield None
 
     def _assign_obs_fields_(self, progress_bar=False, notebook=False):
         """
         """
-        self._derived_properties["obs_fields"] = self.plan.get_obs_fields(
+        f, c = self.plan.get_obs_fields(
             self.generator.ra,
             self.generator.dec,
             field_id=np.unique(self.cadence['field']),
             progress_bar=progress_bar,
             notebook=notebook
         )
+        self._derived_properties["obs_fields"] = f
+        self._derived_properties["obs_ccds"] = c
 
     def _reset_obs_fields_(self):
         """
         """
         self._derived_properties["obs_fields"] = None
+        self._derived_properties["obs_ccds"] = None
 
     def _assign_non_field_obs_(self, progress_bar=False, notebook=False):
         """
         """
-        self._derived_properties["non_field_obs"] = self.plan.get_non_field_obs(
+        f, c = self.plan.get_non_field_obs(
             self.generator.ra,
             self.generator.dec,
             progress_bar=progress_bar,
             notebook=notebook
         )
+        self._derived_properties["non_field_obs"] = f
+        self._derived_properties["non_field_obs_ccds"] = c
 
     def _reset_non_field_obs_(self):
         """
         """
         self._derived_properties["non_field_obs"] = None
+        self._derived_properties["non_field_obs_ccd"] = None
         self._derived_properties["non_field_obs_exist"] = None
     
     # =========================== #
@@ -408,6 +425,16 @@ class SimulSurvey( BaseObject ):
         return self._derived_properties["obs_fields"]
 
     @property
+    def obs_ccds(self):
+        """Transients are assigned fields that they are found"""
+        if (self._derived_properties["obs_fields"] is None and
+            self._derived_properties["obs_ccds"] is None and
+            self.plan.ccds is not None):
+            self._assign_obs_fields_()
+
+        return self._derived_properties["obs_ccds"]
+
+    @property
     def non_field_obs(self):
         """If the plan contains pointings with field id, prepare a list of those."""
         if (self._derived_properties["non_field_obs"] is None
@@ -423,6 +450,13 @@ class SimulSurvey( BaseObject ):
             return [None for k in xrange(self.generator.ntransient)]
         return self._derived_properties["non_field_obs"]
 
+    @property
+    def non_field_obs_ccds(self):
+        """If the plan contains pointings with field id, prepare a list of those."""
+        if self.non_field_obs_exist is False:
+            return [None for k in xrange(self.generator.ntransient)]
+        return self._derived_properties["non_field_obs_ccds"]
+        
     @property
     def non_field_obs_exist(self):
         """Avoid checking for non-field pointings more than once."""
@@ -446,11 +480,11 @@ class SurveyPlan( BaseObject ):
     __nature__ = "SurveyPlan"
 
     PROPERTIES         = ["cadence", "width", "height"]
-    SIDE_PROPERTIES    = ["fields"]
+    SIDE_PROPERTIES    = ["fields", "ccds"]
     DERIVED_PROPERTIES = []
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, width=6.86, height=6.86, fields=None, empty=False,
+                 obs_field=None, width=7.295, height=7.465, fields=None, empty=False,
                  load_opsim=None, **kwargs):
         """
         Parameters:
@@ -463,22 +497,23 @@ class SurveyPlan( BaseObject ):
             return
 
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field,fields=fields, load_opsim=load_opsim,
-                    **kwargs)
+                    obs_field=obs_field,fields=fields, load_opsim=load_opsim, **kwargs)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-               obs_field=None, width=6.86, height=6.86, fields=None, 
+               obs_field=None, width=7.295, height=7.465, fields=None, 
                load_opsim=None, **kwargs):
         """
-        """
+        """        
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
-
+        self._side_properties["ccds"] = kwargs.pop('ccds', None)
+        
         if fields is not None:
             self.set_fields(**fields)
 
         if load_opsim is None:
-            self.add_observation(time,band,skynoise,ra=ra,dec=dec,field=obs_field)
+            self.add_observation(time, band, skynoise, ra=ra, dec=dec,
+                                 field=obs_field)
         else:
             self.load_opsim(load_opsim, **kwargs)
 
@@ -493,13 +528,14 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     # - Setter Methods     - #
     # ---------------------- #
-    def set_fields(self, ra=None, dec=None, **kwargs):
+    def set_fields(self, ra=None, dec=None, ccds=None, **kwargs):
         """
         """
         kwargs["width"] = kwargs.get("width", self.width)
         kwargs["height"] = kwargs.get("height", self.height)
-        
-        self._side_properties["fields"] = SurveyFieldBins(ra, dec, **kwargs)
+
+        self._side_properties["fields"] = SurveyFieldBins(ra, dec, ccds=self.ccds,
+                                                          **kwargs)
 
         if self.cadence is not None and np.any(np.isnan(self.cadence['field'])):
             warnings.warning("cadence was already set, field pointing will be updated")
@@ -586,7 +622,7 @@ class SurveyPlan( BaseObject ):
                              field=loaded['fieldID'])
 
         self.set_fields(ra=fields['fieldRA'], dec=fields['fieldDec'],
-                        field_id=fields['fieldID'])
+                        field_id=fields['fieldID'], ccds=self.ccds)
         
     # ================================== #
     # = Observation time determination = #
@@ -601,7 +637,7 @@ class SurveyPlan( BaseObject ):
                                            progress_bar=progress_bar,
                                            notebook=notebook)
         else:
-            return None
+            return None, None
         
     def get_non_field_obs(self, ra, dec, progress_bar=False, notebook=False):
         """
@@ -616,7 +652,7 @@ class SurveyPlan( BaseObject ):
         for k, obs in enumerate(gen):
             tmp_f = SurveyField(obs["RA"], obs["Dec"], 
                                 self.width, self.height)
-            b = tmp_f.coord_in_field(ra, dec)
+            b, c = tmp_f.coord_in_field(ra, dec, ccds=self.fields.ccds)
 
             # Setup output as dictionaries that can be converted to Tables and
             # sorted later
@@ -624,24 +660,30 @@ class SurveyPlan( BaseObject ):
                 if type(b) is np.bool_:
                     single_coord = True
                     out = np.array([], dtype=int)
+                    ccd = np.array([], dtype=int)
                 else:
                     out = [np.array([], dtype=int) for r in ra]
+                    ccd = [np.array([], dtype=int) for r in ra]
 
             if single_coord:
                 if b:
                     observed = True
                     out = np.append(out, [k])
+                    ccd = np.append(ccd, [c])
             else:
                 for l in np.where(b)[0]:
                     observed = True
                     out[l] = np.append(out[l], [k])
+                    ccd[l] = np.append(ccd[l], [c])
 
         if observed:
-            return out
+            return out, ccd
         else:
-            return None
+            return None, None
 
-    def observed_on(self, fields=None, non_field=None, mjd_range=None):
+    def observed_on(self, fields=None, ccds=None,
+                    non_field=None, non_field_ccds=None,
+                    mjd_range=None):
         """
         mjd_range must be 2-tuple
         fields and non_field np.arrays
@@ -650,15 +692,24 @@ class SurveyPlan( BaseObject ):
             raise ValueError("Provide arrays of fields and/or other pointings") 
 
         out = {'time': [], 'band': [], 'skynoise': [], 'field': []}
+
+        #print fields
+        #print ccds
+        
+        if ccds is not None:
+            out['ccd'] = []
+        
         if fields is not None:
-            for l in fields:
+            for k, l in enumerate(fields):
                 mask = (self.cadence['field'] == l)
                 out['time'].extend(self.cadence['time'][mask].quantity.value)
                 out['band'].extend(self.cadence['band'][mask])
                 out['skynoise'].extend(self.cadence['skynoise']
                                        [mask].quantity.value)
                 out['field'].extend(l*np.ones(np.sum(mask), dtype=int))
-
+                if 'ccd' in out.keys():
+                    out['ccd'].extend(ccds[k]*np.ones(np.sum(mask), dtype=int))
+                
         if non_field is not None:
             mask = np.isnan(self.cadence["field"])
             out['time'].extend(self.cadence['time'][mask][non_field].quantity.value)
@@ -666,7 +717,9 @@ class SurveyPlan( BaseObject ):
             out['skynoise'].extend(self.cadence['skynoise']
                                    [mask][non_field].quantity.value)
             out['field'].extend(np.nan*np.ones(np.sum(mask), dtype=int))
-        
+            if 'ccd' in out.keys():
+                out['ccd'].extend(non_field_ccds[k][mask])
+            
         table = Table(out, meta={})
         idx = np.argsort(table['time'])
         if mjd_range is None:
@@ -700,6 +753,11 @@ class SurveyPlan( BaseObject ):
     def fields(self):
         """Observation fields"""
         return self._side_properties["fields"]
+
+    @property
+    def ccds(self):
+        """Camera CCDs"""
+        return self._side_properties["ccds"]
 
 #######################################
 #                                     #
@@ -789,7 +847,7 @@ class LightcurveCollection( BaseObject ):
     # - Add Methods        - #
     # ---------------------- #
 
-    def _add_lcs_(self, lcs, ):
+    def _add_lcs_(self, lcs):
         """
         """
         if self.lcs is None:
@@ -799,12 +857,12 @@ class LightcurveCollection( BaseObject ):
             for lc in lcs:
                 self._add_lc_(lc)
         else:
-            self._add_lc_(lc)
+            self._add_lc_(lcs)
 
     def _add_lc_(self, lc):
         """
         """
-        self._properties['lcs'].append(standardize_data(lc))
+        self._properties['lcs'].append(lc.as_array())
             
     def _add_meta_(self, meta):
         """

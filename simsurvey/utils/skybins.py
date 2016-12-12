@@ -431,19 +431,20 @@ class SurveyFieldBins( BaseBins ):
     Binner for SurveyField objects
     """
     PROPERTIES         = ["ra", "dec", "width", "height", "max_stepsize",
-                          "field_id"]
+                          "field_id", "ccds"]
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = ["nbins", "fields", "field_id_index"] 
 
-    def __init__(self, ra, dec, width=6.86, height=6.86, max_stepsize=5, 
-                 field_id=None, empty=False):
+    def __init__(self, ra, dec, width=7., height=7., max_stepsize=5, 
+                 field_id=None, empty=False, ccds=None):
         """
         """
         self.__build__()
         if empty:
             return
         self.create(ra, dec, width=width, height=height, 
-                    max_stepsize=max_stepsize, field_id=field_id)
+                    max_stepsize=max_stepsize, field_id=field_id,
+                    ccds=ccds)
 
     # ---------------------- #
     # - Get Method         - #
@@ -453,15 +454,16 @@ class SurveyFieldBins( BaseBins ):
         """
         return self.fields[k]
         
-    def create(self, ra, dec, width=6.86, height=6.86, max_stepsize=5,
-               field_id=None):
+    def create(self, ra, dec, width=7., height=7., max_stepsize=5,
+               field_id=None, ccds=None):
         """
         """
         self._properties["ra"] = np.array(ra)
         self._properties["dec"] = np.array(dec)
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
-
+        self._properties["ccds"] = ccds
+        
         if field_id is None:
             self._properties["field_id"] = range(len(ra))
         else:
@@ -482,12 +484,15 @@ class SurveyFieldBins( BaseBins ):
                          for f in self.fields])
 
     def coord2field(self, ra, dec, field_id=None,
-                        progress_bar=False, notebook=False):
+                    progress_bar=False, notebook=False):
         """
         Return the lists of fields in which a list of coordinates fall.
         Keep in mind that the fields will likely overlap.
         """
         bo = []
+        if self.ccds is not None:
+            ccds = []
+
         if field_id is None:
             gen = self.fields.values()
         else:
@@ -497,16 +502,22 @@ class SurveyFieldBins( BaseBins ):
             print "Determining field IDs for all objects"
             gen = ProgressBar(gen, ipython_widget=notebook)
 
-        for f in gen:
-            bo.append(f.coord_in_field(ra, dec))
-
+            for f in gen:
+                b_, c_ = f.coord_in_field(ra, dec, ccds=self.ccds)
+                bo.append(b_)
+                if self.ccds is not None:
+                    ccds.append(c_)
+                
         # Handle the single coordinate case first
         if type(bo[0]) is np.bool_:
             return self.field_id[np.where(np.array(bo))[0]]
         
         bo = np.array(bo)
-        return [self.field_id[np.where(bo[:,k])[0]]
-                for k in xrange(bo.shape[1])]
+        fields = [self.field_id[np.where(bo[:,k])[0]]
+                  for k in xrange(bo.shape[1])]
+        if self.ccds is not None:
+            return fields, ccds
+        return fields, None
 
     # ========================== #
     # = Utilities for plotting = #
@@ -565,6 +576,13 @@ class SurveyFieldBins( BaseBins ):
         """maximum stepsize for boundary in degrees"""
         return self._properties["max_stepsize"]
 
+    @property
+    def ccds(self):
+        """list of CCD corners for each CCD
+        [TODO: define the correct order; for now it is as in ZTF_corner.txt
+        """
+        return self._properties["ccds"]
+        
     # --------------------
     # - Derived Properties
     @property
@@ -620,7 +638,7 @@ class SurveyField( BaseObject ):
     # =========== #
     # = Binning = #
     # =========== #
-    def coord_in_field(self, ra, dec):
+    def coord_in_field(self, ra, dec, ccds=None):
         """
         Check whether coordinates are in the field
         Returns bool if (ra, dec) floats, np.ndarray of bools if (ra, dec) 
@@ -652,17 +670,45 @@ class SurveyField( BaseObject ):
 
         ra -= self.ra
         ra1, dec1 = rot_xz_sph(ra, dec, -self.dec)
+        ra1 *= np.cos(dec1*_d2r)
         
         out = np.ones(ra1.shape, dtype=bool)
         out[dec1 > self.height/2.] = False
         out[dec1 < -self.height/2.] = False
-        out[ra1*np.cos(dec1*_d2r) > self.width/2.] = False
-        out[ra1*np.cos(dec1*_d2r) < -self.width/2.] = False
+        out[ra1 > self.width/2.] = False
+        out[ra1 < -self.width/2.] = False
         
-        if single_val:
-            return out[0]
-        return out
+        if ccds is None:
+            if single_val:
+                return out[0], None
+            return out, None
+        else:
+            return self._check_ccds_(out, ra1, dec1, ccds, single_val)
 
+    def _check_ccds_(self, mask, r, d, c, single_val=False):
+        """
+        """
+        def _f_edge(x, y, c0, c1):
+            return y - c0[1] - (c1[1] - c0[1])/(c1[0] - c0[0]) * (x - c0[0])
+
+        def _f_ccd(x, y, c_):
+            return ((_f_edge(x, y, c_[0], c_[2]) > 0) &
+                    (_f_edge(x, y, c_[1], c_[3]) < 0) &
+                    (_f_edge(y, x, c_[0,::-1], c_[1,::-1]) > 0) &
+                    (_f_edge(y, x, c_[2,::-1], c_[3,::-1]) < 0))
+
+        b = np.array([_f_ccd(r[mask], d[mask], ccd)
+                      for ccd in c])
+        on_ccd = np.array([np.any(b[:,k]) for k in xrange(b.shape[1])])
+        mask[mask] = on_ccd
+        n_ccd = np.array([np.where(b[:,k])[0]
+                          for k in np.where(on_ccd)[0]])
+
+        if single_val:
+            return mask[0], n_ccd[0]
+        return mask, n_ccd
+        
+            
     # ========================== #
     # = Utilities for plotting = #
     # ========================== #
