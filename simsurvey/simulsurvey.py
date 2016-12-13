@@ -470,7 +470,6 @@ class SurveyPlan( BaseObject ):
     A list of fields can be given to simplify adding observations and avoid 
     lookups whether an object is in a certain field.
     Currently assumes a single instrument, especially for FoV width and height.
-    [This may be useful for the cadence property of SimulSurvey]
     """
     __nature__ = "SurveyPlan"
 
@@ -753,7 +752,7 @@ class SurveyPlan( BaseObject ):
 
 #######################################
 #                                     #
-# Survey: Plan object                 #
+# LigthcurveCollecion object          #
 #                                     #
 #######################################
 class LightcurveCollection( BaseObject ):

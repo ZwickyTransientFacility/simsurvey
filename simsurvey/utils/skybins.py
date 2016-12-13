@@ -495,6 +495,7 @@ class SurveyFieldBins( BaseBins ):
 
         if field_id is None:
             gen = self.fields.values()
+            field_id = self.field_id
         else:
             gen = [f for i, f in self.fields.items() if i in field_id]
             
@@ -510,11 +511,14 @@ class SurveyFieldBins( BaseBins ):
 
         # Handle the single coordinate case first
         if type(bo[0]) is np.bool_:
-            return self.field_id[np.where(np.array(bo))[0]]
+            if self.ccds is not None:
+                return (field_id[np.where(np.array(bo))[0]],
+                        c[:,k][~np.isnan(c[:,k])])
+            return self.field_id[np.where(np.array(bo))[0]], None
         
         bo = np.array(bo)
         c = np.array(c)
-        fields = [self.field_id[np.where(bo[:,k])[0]]
+        fields = [field_id[np.where(bo[:,k])[0]]
                   for k in xrange(bo.shape[1])]
         if self.ccds is not None:
             ccds = [np.array(c[:,k][~np.isnan(c[:,k])], dtype=int)

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""This pupose of this method is the have a generator of fake astrotarget, like SN"""
+"""This module contains generators for simulated transients"""
 
 import warnings
 import numpy as np
@@ -12,7 +12,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from astropy.cosmology import FlatLambdaCDM, Planck15
 
 from propobject import BaseObject
-# from astrobject import get_target
 
 from utils       import random
 from utils.tools import kwargs_extract, kwargs_update, range_args
@@ -301,8 +300,8 @@ class TransientGenerator( BaseObject ):
 
         """
         import matplotlib.pyplot as mpl
-        from astrobject.utils.mpladdon import figout, skyplot
-        from astrobject.utils.plot.skyplot import ax_skyplot
+        from utils.mpladdon import figout, skyplot
+        from utils.skyplot import ax_skyplot
         self._plot = {}
 
         # ------------------
@@ -376,8 +375,8 @@ class TransientGenerator( BaseObject ):
                          cblabel=r"$N_{SNe}$", **kwargs):
         """This function draws a sky histogram of the transient coverage"""
         import matplotlib.pyplot as mpl
-        from astrobject.utils.mpladdon import figout, skyhist
-        from astrobject.utils.plot.skyplot import ax_skyplot
+        from utils.mpladdon import figout, skyhist
+        from utils.skyplot import ax_skyplot
         self._plot = {}
 
         if ax is None:
