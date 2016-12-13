@@ -513,7 +513,7 @@ class SurveyFieldBins( BaseBins ):
         if type(bo[0]) is np.bool_:
             if self.ccds is not None:
                 return (field_id[np.where(np.array(bo))[0]],
-                        c[:,k][~np.isnan(c[:,k])])
+                        c[:,0][~np.isnan(c[:,0])])
             return self.field_id[np.where(np.array(bo))[0]], None
         
         bo = np.array(bo)
