@@ -9,8 +9,6 @@ import warnings
 from .tools import kwargs_update
 from .decorators import make_method
 
-# remark: do no import .plot.*** at this level
-#         otherwise import loop with astrobject
 __all__ = ["specplot","skyplot","figout"]
 
 # ========================== #
@@ -173,7 +171,7 @@ def skyplot(ax, ra, dec, color=None, **kwargs):
     ------
     pl (output of ax.plot)
     """
-    from .plot.skyplot import convert_radec_azel
+    from .skyplot import convert_radec_azel
     # -----------------------
     # - Properties of plot
     default_kwargs = dict(marker='o', markersize=5, linestyle='none')
@@ -206,7 +204,7 @@ def skyscatter(ax, ra, dec, **kwargs):
     ------
     sc (output of ax.scatter)
     """
-    from .plot.skyplot import convert_radec_azel
+    from .skyplot import convert_radec_azel
     # -----------------------
     # - Properties of plot
     default_kwargs = dict(marker='o', s=30,
@@ -274,8 +272,8 @@ def skyhist(ax, ra=None, dec=None, values=None, bins=None, steps=None, max_steps
     from matplotlib.patches import Polygon
     from matplotlib.collections import PatchCollection, PolyCollection
 
-    from .plot.skybins import SkyBins
-    from .plot.skyplot import convert_radec_azel
+    from .skybins import SkyBins
+    from .skyplot import convert_radec_azel
     
     if bins is None:
         bins = SkyBins()

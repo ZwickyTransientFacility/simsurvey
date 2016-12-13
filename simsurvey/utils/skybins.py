@@ -512,8 +512,9 @@ class SurveyFieldBins( BaseBins ):
         # Handle the single coordinate case first
         if type(bo[0]) is np.bool_:
             if self.ccds is not None:
+                #c = np.array(c)
                 return (field_id[np.where(np.array(bo))[0]],
-                        c[:,0][~np.isnan(c[:,0])])
+                        np.array(c)[~np.isnan(c)])
             return self.field_id[np.where(np.array(bo))[0]], None
         
         bo = np.array(bo)
