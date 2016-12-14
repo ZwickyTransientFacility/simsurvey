@@ -17,11 +17,9 @@ import warnings
 import numpy as np
 from copy import copy
 
-from astropy.utils.console import ProgressBar
-
 from propobject import BaseObject
 from .skyplot import rot_xz_sph
-from .tools import kwargs_extract,kwargs_update
+from .tools import kwargs_extract, kwargs_update, get_progressbar
 
 try:
     import healpy as hp
@@ -484,7 +482,7 @@ class SurveyFieldBins( BaseBins ):
                          for f in self.fields])
 
     def coord2field(self, ra, dec, field_id=None,
-                    progress_bar=False, notebook=False):
+                    progress_bar=False):
         """
         Return the lists of fields in which a list of coordinates fall.
         Keep in mind that the fields will likely overlap.
@@ -495,12 +493,18 @@ class SurveyFieldBins( BaseBins ):
 
         if field_id is None:
             gen = self.fields.values()
+            field_id = self.field_id
         else:
             gen = [f for i, f in self.fields.items() if i in field_id]
             
         if progress_bar:
-            print "Determining field IDs for all objects"
-            gen = ProgressBar(gen, ipython_widget=notebook)
+            try:
+                print "Determining field IDs for all objects"
+                gen = get_progressbar(gen)
+            except ImportError:
+                pass
+            except IOError:
+                pass
 
         for f in gen:
             b_, c_ = f.coord_in_field(ra, dec, ccds=self.ccds)
@@ -510,11 +514,15 @@ class SurveyFieldBins( BaseBins ):
 
         # Handle the single coordinate case first
         if type(bo[0]) is np.bool_:
-            return self.field_id[np.where(np.array(bo))[0]]
+            if self.ccds is not None:
+                #c = np.array(c)
+                return (field_id[np.where(np.array(bo))[0]],
+                        np.array(c)[~np.isnan(c)])
+            return self.field_id[np.where(np.array(bo))[0]], None
         
         bo = np.array(bo)
         c = np.array(c)
-        fields = [self.field_id[np.where(bo[:,k])[0]]
+        fields = [field_id[np.where(bo[:,k])[0]]
                   for k in xrange(bo.shape[1])]
         if self.ccds is not None:
             ccds = [np.array(c[:,k][~np.isnan(c[:,k])], dtype=int)

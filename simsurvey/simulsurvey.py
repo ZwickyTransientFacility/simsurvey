@@ -12,11 +12,10 @@ from itertools import izip
 import sncosmo
 from sncosmo.photdata      import dict_to_array
 from astropy.table         import Table, vstack, hstack
-from astropy.utils.console import ProgressBar
 
 from propobject import BaseObject
 
-from utils.tools   import kwargs_update, range_args, range_length
+from utils.tools   import kwargs_update, range_args, range_length, get_progressbar
 from utils.skybins import SurveyField, SurveyFieldBins 
 
 _d2r = np.pi/180
@@ -82,7 +81,6 @@ class SimulSurvey( BaseObject ):
         """
         args = range_args(self.generator.ntransient, *args)
         progress_bar = kwargs.pop('progress_bar', False)
-        notebook = kwargs.pop('notebook', False)
 
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
@@ -93,17 +91,27 @@ class SimulSurvey( BaseObject ):
                    self._get_observations_(*args))
 
         if progress_bar:
-            self._assign_obs_fields_(progress_bar=True, notebook=notebook)
-            self._assign_non_field_obs_(progress_bar=True, notebook=notebook)
+            self._assign_obs_fields_(progress_bar=True)
+            self._assign_non_field_obs_(progress_bar=True)
             
-            print 'Generating lightcurves'
-            ntransient = range_length(*args)
-            with ProgressBar(ntransient, ipython_widget=notebook) as bar:
-                for k, p, obs in gen:
-                    if obs is not None:
-                        lcs.add(self._get_lightcurve_(p, obs, k))
-                    bar.update()
-        else:
+            try:
+                print 'Generating lightcurves'
+                ntransient = range_length(*args)
+                bar = get_progressbar(ntransient)
+
+                with get_progressbar(ntransient) as bar:
+                    for k, p, obs in gen:
+                        if obs is not None:
+                            lcs.add(self._get_lightcurve_(p, obs, k))
+                            bar.update()
+                            
+                progress_bar_success = True
+            except ImportError:
+                progress_bar_success = False
+            except IOError:
+                progress_bar_success = False
+
+        if not progress_bar_success:
             for k, p, obs in gen:
                 if obs is not None:
                     lcs.add(self._get_lightcurve_(p, obs, k))
@@ -332,15 +340,14 @@ class SimulSurvey( BaseObject ):
             else:
                 yield None
 
-    def _assign_obs_fields_(self, progress_bar=False, notebook=False):
+    def _assign_obs_fields_(self, progress_bar=False):
         """
         """
         f, c = self.plan.get_obs_fields(
             self.generator.ra,
             self.generator.dec,
             field_id=np.unique(self.cadence['field']),
-            progress_bar=progress_bar,
-            notebook=notebook
+            progress_bar=progress_bar
         )
         self._derived_properties["obs_fields"] = f
         self._derived_properties["obs_ccds"] = c
@@ -351,14 +358,13 @@ class SimulSurvey( BaseObject ):
         self._derived_properties["obs_fields"] = None
         self._derived_properties["obs_ccds"] = None
 
-    def _assign_non_field_obs_(self, progress_bar=False, notebook=False):
+    def _assign_non_field_obs_(self, progress_bar=False):
         """
         """
         f, c = self.plan.get_non_field_obs(
             self.generator.ra,
             self.generator.dec,
-            progress_bar=progress_bar,
-            notebook=notebook
+            progress_bar=progress_bar
         )
         self._derived_properties["non_field_obs"] = f
         self._derived_properties["non_field_obs_ccds"] = c
@@ -470,7 +476,6 @@ class SurveyPlan( BaseObject ):
     A list of fields can be given to simplify adding observations and avoid 
     lookups whether an object is in a certain field.
     Currently assumes a single instrument, especially for FoV width and height.
-    [This may be useful for the cadence property of SimulSurvey]
     """
     __nature__ = "SurveyPlan"
 
@@ -623,27 +628,31 @@ class SurveyPlan( BaseObject ):
     # = Observation time determination = #
     # ================================== #
     def get_obs_fields(self, ra, dec, field_id=None,
-                       progress_bar=False, notebook=False):
+                       progress_bar=False):
         """
         """
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
             return self.fields.coord2field(ra, dec, field_id=field_id,
-                                           progress_bar=progress_bar,
-                                           notebook=notebook)
+                                           progress_bar=progress_bar)
         else:
             return None, None
         
-    def get_non_field_obs(self, ra, dec, progress_bar=False, notebook=False):
+    def get_non_field_obs(self, ra, dec, progress_bar=False):
         """
         """
         observed = False
         gen = self.cadence[np.isnan(self.cadence["field"])]
         
         if progress_bar and len(gen) > 0:
-            print "Finding transients observed in custom pointings"
-            gen = ProgressBar(gen, ipython_widget=notebook)
-
+            try:
+                print "Finding transients observed in custom pointings"
+                gen = get_progressbar(gen)
+            except ImportError:
+                pass
+            except IOError:
+                pass
+                
         for k, obs in enumerate(gen):
             tmp_f = SurveyField(obs["RA"], obs["Dec"], 
                                 self.width, self.height)
@@ -753,7 +762,7 @@ class SurveyPlan( BaseObject ):
 
 #######################################
 #                                     #
-# Survey: Plan object                 #
+# LigthcurveCollecion object          #
 #                                     #
 #######################################
 class LightcurveCollection( BaseObject ):
