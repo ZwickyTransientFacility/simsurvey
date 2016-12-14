@@ -180,3 +180,27 @@ def shape_ajustment(X,Y,model_X,k=4,s=0,
         YrebinOK[0]  = Yrebin[0]
         
         return YrebinOK
+
+# --------------------------- #
+# - Array Tools             - #
+# --------------------------- #
+def get_progressbar(gen, **kwargs):
+    """
+    """
+    from astropy.utils.console import ProgressBar
+    
+    info = ipython_info() 
+    if info == 'terminal':
+        gen = ProgressBar(gen)
+    elif info == 'notebook':
+        try:
+            gen = ProgressBar(gen, ipython_widget=True)
+        except ImportError as e:
+            warnings.warn('ProgressBar in notebook not working. Is ipywidgets installed?')
+            raise e
+    elif info is None:
+        msg = 'Could not determine ipython mode.'
+        warnings.warn(msg + ' Not using ProgressBar.')
+        raise IOError(msg)
+
+    return gen
