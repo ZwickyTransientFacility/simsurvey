@@ -964,6 +964,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def lightcurve_Ia_basic(self,redshifts,model=None,
                             color_mean=0,color_sigma=0.1,
                             stretch_mean=0,stretch_sigma=1,
+                            alpha=0.13, beta=3.,
                             cosmo=Planck15):
         """
         """
@@ -974,10 +975,15 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             self.set_model(sncosmo.Model(source='salt2'))
         else:
             self.set_model(model)
+
+        x1 = normal(stretch_mean, stretch_sigma, ntransient)
+        c = normal(color_mean, color_sigma, ntransient)
+            
         x0 = []
         for z in redshifts:
-            self.model.set(z=z)
-            mabs = normal(-19.3, 0.3)
+            self.model.set(z=z, x1=x1[k], c=c[k])
+            mabs = normal(-19.3, 0.1)
+            mabs -= alpha*x1[k] - beta*c[k]            
             self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
             
@@ -1036,7 +1042,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
         x0 = []
         for k,z in enumerate(redshifts):
-            self.model.set(z=z)
+            self.model.set(z=z, x1=x1[k], c=c[k])
             mabs = normal(mabs_mean, mabs_sigma)
             mabs -= alpha*x1[k] - beta*c[k]
             self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
