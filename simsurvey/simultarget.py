@@ -976,6 +976,8 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         else:
             self.set_model(model)
 
+        ntransient = len(redshifts)
+            
         x1 = normal(stretch_mean, stretch_sigma, ntransient)
         c = normal(color_mean, color_sigma, ntransient)
             
@@ -986,12 +988,10 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             mabs -= alpha*x1[k] - beta*c[k]            
             self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
-            
-        ntransient = len(redshifts)
         
-        return {'x0':np.array(x0),
-                'x1':normal(stretch_mean, stretch_sigma, ntransient),
-                'c':normal(color_mean, color_sigma, ntransient)}
+        return {'x0': np.array(x0),
+                'x1': x1,
+                'c': c}
 
     def lightcurve_Ia_random(self,redshifts,model=None,
                             color_mean=0,color_sigma=0.1,
