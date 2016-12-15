@@ -982,10 +982,10 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         c = normal(color_mean, color_sigma, ntransient)
             
         x0 = []
-        for z in redshifts:
-            self.model.set(z=z, x1=x1[k], c=c[k])
+        for z, x1_, c_ in zip(redshifts, x1, c):
+            self.model.set(z=z, x1=x1_, c=c_)
             mabs = normal(-19.3, 0.1)
-            mabs -= alpha*x1[k] - beta*c[k]            
+            mabs -= alpha*x1_ - beta*c_            
             self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
             x0.append(self.model.get('x0'))
         
