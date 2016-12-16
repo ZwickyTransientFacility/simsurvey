@@ -90,6 +90,8 @@ class SimulSurvey( BaseObject ):
                    self.generator.get_lightcurve_full_param(*args),
                    self._get_observations_(*args))
 
+        progress_bar_success = False
+        
         if progress_bar:
             self._assign_obs_fields_(progress_bar=True)
             self._assign_non_field_obs_(progress_bar=True)
