@@ -13,8 +13,8 @@ MAINTAINER = 'Ulrich Feindt'
 MAINTAINER_EMAIL = 'ulrich.feindt@fysik.su.se'
 URL = 'https://github.com/MickaelRigault/simsurvey/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/MickaelRigault/simsurvey/tarball/0.2.1'
-VERSION = '0.2.1'
+DOWNLOAD_URL = 'https://github.com/MickaelRigault/simsurvey/tarball/0.2.2'
+VERSION = '0.2.2'
 
 try:
     from setuptools import setup, find_packages
