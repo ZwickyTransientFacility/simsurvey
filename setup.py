@@ -22,35 +22,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-def check_dependencies():
-    install_requires = []
-
-    # Just make sure dependencies exist, I haven't rigorously
-    # tested what the minimal versions that will work are
-    # (help on that would be awesome)
-    try:
-        import astropy
-    except ImportError:
-        install_requires.append('astropy>=1.2.1')
-    try:
-        import sncosmo
-    except ImportError:
-        install_requires.append('sncosmo>=1.3.1')
-    try:
-        import propobject
-    except ImportError:
-        install_requires.append('propobject>=0.1.0')
-    try:
-        import sfdmap
-    except ImportError:
-        install_requires.append('sfdmap>=0.1.0')
-        
-    return install_requires
-
 if __name__ == "__main__":
-
-    install_requires = check_dependencies()
-
     if _has_setuptools:
         packages = find_packages()
     else:
@@ -68,7 +40,6 @@ if __name__ == "__main__":
           url=URL,
           version=VERSION,
           download_url=DOWNLOAD_URL,
-          install_requires=install_requires,
           packages=packages,
           classifiers=[
               'Intended Audience :: Science/Research',
@@ -78,4 +49,9 @@ if __name__ == "__main__":
               'Operating System :: POSIX',
               'Operating System :: Unix',
               'Operating System :: MacOS'],
+          install_requires=[
+              'propobject>=0.1.0',
+              'astropy>=1.2.1',
+              'sncosmo>=1.3.1',
+              'sfdmap>=0.1.0'],
     )
