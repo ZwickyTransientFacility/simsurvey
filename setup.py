@@ -31,19 +31,19 @@ def check_dependencies():
     try:
         import astropy
     except ImportError:
-        install_requires.append('astropy')
+        install_requires.append('astropy>=1.2.1')
     try:
         import sncosmo
     except ImportError:
-        install_requires.append('sncosmo')
+        install_requires.append('sncosmo>=1.3.1')
     try:
         import propobject
     except ImportError:
-        install_requires.append('propobject')
+        install_requires.append('propobject>=0.1.0')
     try:
         import sfdmap
     except ImportError:
-        install_requires.append('sfdmap')
+        install_requires.append('sfdmap>=0.1.0')
         
     return install_requires
 
@@ -78,4 +78,4 @@ if __name__ == "__main__":
               'Operating System :: POSIX',
               'Operating System :: Unix',
               'Operating System :: MacOS'],
-      )
+    )
