@@ -32,14 +32,14 @@ class SimulSurvey( BaseObject ):
     Basic survey object
     """
     __nature__ = "SimulSurvey"
-    
+
     PROPERTIES         = ["generator", "instruments","plan"]
     SIDE_PROPERTIES    = ["cadence", "blinded_bias"]
     DERIVED_PROPERTIES = ["obs_fields", "obs_ccd",
                           "non_field_obs", "non_field_obs_ccd",
                           "non_field_obs_exist"]
 
-    def __init__(self,generator=None, plan=None,
+    def __init__(self, generator=None, plan=None,
                  instprop=None, blinded_bias=None,
                  empty=False):
         """
@@ -635,8 +635,9 @@ class SurveyPlan( BaseObject ):
         """
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
-            return self.fields.coord2field(ra, dec, field_id=field_id,
-                                           progress_bar=progress_bar)
+            tmp = self.fields.coord2field(ra, dec, field_id=field_id,
+                                          progress_bar=progress_bar)
+            return tmp['field'], tmp['ccd']
         else:
             return None, None
         
@@ -645,7 +646,7 @@ class SurveyPlan( BaseObject ):
         """
         observed = False
         gen = self.cadence[np.isnan(self.cadence["field"])]
-        
+
         if progress_bar and len(gen) > 0:
             try:
                 print "Finding transients observed in custom pointings"
@@ -654,16 +655,17 @@ class SurveyPlan( BaseObject ):
                 pass
             except IOError:
                 pass
-                
+
         for k, obs in enumerate(gen):
             tmp_f = SurveyField(obs["RA"], obs["Dec"], 
-                                self.width, self.height)
-            b, c = tmp_f.coord_in_field(ra, dec, ccds=self.fields.ccds)
+                                self.width, self.height,
+                                ccds=self.fields.ccds)
+            tmp = tmp_f.coord_in_field(ra, dec)
 
             # Setup output as dictionaries that can be converted to Tables and
             # sorted later
             if k == 0:
-                if type(b) is np.bool_:
+                if type(tmp['field']) is np.bool_:
                     single_coord = True
                     out = np.array([], dtype=int)
                     ccd = np.array([], dtype=int)
@@ -672,15 +674,15 @@ class SurveyPlan( BaseObject ):
                     ccd = [np.array([], dtype=int) for r in ra]
 
             if single_coord:
-                if b:
+                if tmp['field']:
                     observed = True
                     out = np.append(out, [k])
-                    ccd = np.append(ccd, [c])
+                    ccd = np.append(ccd, [tmp['ccd']])
             else:
-                for l in np.where(b)[0]:
+                for l in np.where(tmp['field'])[0]:
                     observed = True
                     out[l] = np.append(out[l], [k])
-                    ccd[l] = np.append(ccd[l], [c])
+                    ccd[l] = np.append(ccd[l], [tmp['ccd']])
 
         if observed:
             return out, ccd
@@ -695,13 +697,13 @@ class SurveyPlan( BaseObject ):
         fields and non_field np.arrays
         """
         if fields is None and non_field is None:
-            raise ValueError("Provide arrays of fields and/or other pointings") 
+            raise ValueError("Provide arrays of fields and/or other pointings")
 
         out = {'time': [], 'band': [], 'skynoise': [], 'field': []}
 
         if ccds is not None:
             out['ccd'] = []
-            
+
         if fields is not None:
             for k, l in enumerate(fields):
                 mask = (self.cadence['field'] == l)
@@ -712,7 +714,7 @@ class SurveyPlan( BaseObject ):
                 out['field'].extend(l*np.ones(np.sum(mask), dtype=int))
                 if 'ccd' in out.keys():
                     out['ccd'].extend(ccds[k]*np.ones(np.sum(mask), dtype=int))
-                
+
         if non_field is not None:
             mask = np.isnan(self.cadence["field"])
             out['time'].extend(self.cadence['time'][mask][non_field].quantity.value)
@@ -722,7 +724,7 @@ class SurveyPlan( BaseObject ):
             out['field'].extend(np.nan*np.ones(np.sum(mask), dtype=int))
             if 'ccd' in out.keys():
                 out['ccd'].extend(non_field_ccds[k][mask])
-            
+
         table = Table(out, meta={})
         idx = np.argsort(table['time'])
         if mjd_range is None:
@@ -751,7 +753,7 @@ class SurveyPlan( BaseObject ):
         return self._properties["height"]
 
     # ------------------
-    # - Side properties                    
+    # - Side properties
     @property
     def fields(self):
         """Observation fields"""
