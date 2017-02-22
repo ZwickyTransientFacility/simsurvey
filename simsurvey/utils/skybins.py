@@ -8,9 +8,9 @@ Currently there are two fully functional Bins classes:
 - SkyBins provides rectangular bins in (RA, Dec)
 - HealpixBins provides binning based on HEALPix (requires healpy)
 
-To make a custom binner, use the BaseBins class as parent and add methods 
+To make a custom binner, use the BaseBins class as parent and add methods
 'hist' (counts the hits per bin) and  'boundary' (provides boundary of bin
-to draw the polygon) 
+to draw the polygon)
 """
 
 import warnings
@@ -19,7 +19,7 @@ from copy import copy
 
 from propobject import BaseObject
 from .skyplot import rot_xz_sph
-from .tools import kwargs_extract, kwargs_update, get_progressbar
+from .tools import kwargs_update, get_progressbar
 
 try:
     import healpy as hp
@@ -323,8 +323,6 @@ class SkyBins( BaseBins ):
     def nbins(self):
         """number of bins"""
         return len(self._properties["ra_min"])
-    
-
 
 class HealpixBins( BaseBins ):
     """
@@ -332,7 +330,7 @@ class HealpixBins( BaseBins ):
     """
     PROPERTIES         = ["nside", "nest", "max_stepsize"]
     SIDE_PROPERTIES    = []
-    DERIVED_PROPERTIES = ["nbins"] 
+    DERIVED_PROPERTIES = ["nbins"]
 
     def __init__(self, nside=8, nest=True, max_stepsize=5, empty=False):
         """
@@ -350,7 +348,7 @@ class HealpixBins( BaseBins ):
 
         self._properties["nside"] = nside
         self._properties["nest"] = nest
-                         
+
         self._properties["max_stepsize"] = max_stepsize
         #self.__update__()
 
@@ -451,7 +449,7 @@ class SurveyFieldBins( BaseBins ):
         """
         """
         return self.fields[k]
-        
+
     def create(self, ra, dec, width=7., height=7., max_stepsize=5,
                field_id=None, ccds=None):
         """
@@ -461,12 +459,12 @@ class SurveyFieldBins( BaseBins ):
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
         self._properties["ccds"] = ccds
-        
+
         if field_id is None:
             self._properties["field_id"] = range(len(ra))
         else:
             self._properties["field_id"] = np.array(field_id)
-                         
+
         self._properties["max_stepsize"] = max_stepsize
 
         #self.__update__()
@@ -488,6 +486,8 @@ class SurveyFieldBins( BaseBins ):
         Keep in mind that the fields will likely overlap.
         """
         bo = []
+        r_off = []
+        d_off = []
         if self.ccds is not None:
             c = []
 
@@ -496,7 +496,7 @@ class SurveyFieldBins( BaseBins ):
             field_id = self.field_id
         else:
             gen = [f for i, f in self.fields.items() if i in field_id]
-            
+
         if progress_bar:
             try:
                 print "Determining field IDs for all objects"
@@ -507,28 +507,93 @@ class SurveyFieldBins( BaseBins ):
                 pass
 
         for f in gen:
-            b_, c_ = f.coord_in_field(ra, dec, ccds=self.ccds)
-            bo.append(b_)
+            tmp = f.coord_in_field(ra, dec)
+            bo.append(tmp['field'])
+            r_off.append(tmp['ra_off'])
+            d_off.append(tmp['dec_off'])
             if self.ccds is not None:
-                c.append(c_)
+                c.append(tmp['ccd'])
 
         # Handle the single coordinate case first
         if type(bo[0]) is np.bool_:
             if self.ccds is not None:
-                #c = np.array(c)
-                return (field_id[np.where(np.array(bo))[0]],
-                        np.array(c)[~np.isnan(c)])
-            return self.field_id[np.where(np.array(bo))[0]], None
-        
+                c = np.array(c)
+                return {'field': field_id[np.where(np.array(bo))[0]],
+                        'ra_off': np.array(r_off)[~np.isnan(r_off)],
+                        'dec_off': np.array(d_off)[~np.isnan(d_off)],
+                        'ccd': c[c >= 0]}
+            return {'field': field_id[np.where(np.array(bo))[0]],
+                    'ra_off': np.array(r_off)[~np.isnan(r_off)],
+                    'dec_off': np.array(d_off)[~np.isnan(d_off)]}
+
         bo = np.array(bo)
-        c = np.array(c)
+        r_off = np.array(r_off)
+        d_off = np.array(d_off)
+
         fields = [field_id[np.where(bo[:,k])[0]]
                   for k in xrange(bo.shape[1])]
+        r_out = [np.array(r_off[:,k][~np.isnan(r_off[:,k])])
+                 for k in xrange(r_off.shape[1])]
+        d_out = [np.array(d_off[:,k][~np.isnan(d_off[:,k])])
+                 for k in xrange(d_off.shape[1])]
+
         if self.ccds is not None:
-            ccds = [np.array(c[:,k][~np.isnan(c[:,k])], dtype=int)
+            c = np.array(c)
+            ccds = [np.array(c[:,k][c[:,k] >= 0], dtype=int)
                     for k in xrange(c.shape[1])]
-            return fields, ccds
-        return fields, None
+            return {'field': fields, 'ra_off': r_out,
+                    'dec_off': d_out, 'ccd': ccds}
+        return {'field': fields, 'ra_off': r_out, 'dec_off': d_out}
+
+    def field2coord(self, field, ra_off=None, dec_off=None, ccd=None):
+        """
+        """
+        single_val = False
+        if type(field) is list:
+            field = np.array(field, dtype=int)
+        elif type(field) is not np.ndarray:
+            field = np.array([field], dtype=int)
+            single_val = True
+
+        if ra_off is None and dec_off is None and ccd is None:
+            idx = self.field_id_index[field]
+            r = self.ra[idx]
+            d = self.dec[idx]
+        else:
+            if ra_off is None and dec_off is None:
+                ra_off = np.zeros(len(field))
+                dec_off = np.zeros(len(field))
+            else:
+                if single_val:
+                    ra_off = np.array([ra_off])
+                    dec_off = np.array([dec_off])
+                else:
+                    ra_off = np.array(ra_off)
+                    dec_off = np.array(dec_off)
+
+            if ccd is not None:
+                if single_val:
+                    ccd = np.array([ccd], dtype=int)
+                else:
+                    ccd = np.array(ccd, dtype=int)
+
+            r = np.zeros(len(field))
+            d = np.zeros(len(field))
+
+            for i, f in self.fields.items():
+                if  i in field:
+                    mask = (field == i)
+                    if ccd is not None:
+                        c = ccd[mask]
+                    else:
+                        c = None
+
+                    r[mask], d[mask] = f.pos2radec(ra_off[mask], dec_off[mask], c)
+
+        if single_val:
+            return r[0], d[0]
+        else:
+            return r, d
 
     # ========================== #
     # = Utilities for plotting = #
@@ -581,7 +646,7 @@ class SurveyFieldBins( BaseBins ):
     def field_id(self):
         """field height"""
         return self._properties["field_id"]
-        
+
     @property
     def max_stepsize(self):
         """maximum stepsize for boundary in degrees"""
@@ -593,7 +658,7 @@ class SurveyFieldBins( BaseBins ):
         [TODO: define the correct order; for now it is as in ZTF_corner.txt
         """
         return self._properties["ccds"]
-        
+
     # --------------------
     # - Derived Properties
     @property
@@ -604,7 +669,8 @@ class SurveyFieldBins( BaseBins ):
     @property
     def fields(self):
         """dictionary of survey fields"""
-        return {i: SurveyField(r, d, self.width, self.height, self.max_stepsize) 
+        return {i: SurveyField(r, d, self.width, self.height, self.max_stepsize,
+                               ccds=self.ccds) 
                 for i, r, d in zip(self.field_id, self.ra, self.dec)}
 
     @property
@@ -615,41 +681,44 @@ class SurveyFieldBins( BaseBins ):
         out[self.field_id] = range(len(self.field_id))
 
         return out
-        
+
 class SurveyField( BaseObject ):
     """
     SurveyField objects
     """
     PROPERTIES         = ["ra", "dec", "width", "height"]
-    SIDE_PROPERTIES    = []
-    DERIVED_PROPERTIES = [] 
+    SIDE_PROPERTIES    = ["ccds"]
+    DERIVED_PROPERTIES = ["ccd_centers"] 
 
     def __init__(self, ra, dec, width=7., height=7., max_stepsize=5, 
-                 empty=False):
+                 ccds=None, empty=False):
         """
         """
         self.__build__()
         if empty:
             return
         self.create(ra, dec, width=width, height=height, 
-                    max_stepsize=max_stepsize)
+                    max_stepsize=max_stepsize, ccds=ccds)
 
-    def create(self, ra, dec, width=7., height=7., max_stepsize=5):
+    def create(self, ra, dec, width=7., height=7., max_stepsize=5, ccds=None):
         """
         """
         self._properties["ra"] = ra
         self._properties["dec"] = dec
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
-                         
+
         self._properties["max_stepsize"] = max_stepsize
+
+        if ccds is not None:
+            self._side_properties["ccds"] = ccds
 
         #self.__update__()
 
     # =========== #
     # = Binning = #
     # =========== #
-    def coord_in_field(self, ra, dec, ccds=None):
+    def coord_in_field(self, ra, dec):
         """
         Check whether coordinates are in the field
         Returns bool if (ra, dec) floats, np.ndarray of bools if (ra, dec) 
@@ -682,21 +751,23 @@ class SurveyField( BaseObject ):
         ra -= self.ra
         ra1, dec1 = rot_xz_sph(ra, dec, -self.dec)
         ra1 *= np.cos(dec1*_d2r)
-        
+
         out = np.ones(ra1.shape, dtype=bool)
         out[dec1 > self.height/2.] = False
         out[dec1 < -self.height/2.] = False
         out[ra1 > self.width/2.] = False
         out[ra1 < -self.width/2.] = False
-        
-        if ccds is None:
-            if single_val:
-                return out[0], None
-            return out, None
-        else:
-            return self._check_ccds_(out, ra1, dec1, ccds, single_val)
+        ra1[~out] = np.nan 
+        dec1[~out] = np.nan 
 
-    def _check_ccds_(self, mask, r, d, c, single_val=False):
+        if self.ccds is None:
+            if single_val:
+                return {'field': out[0], 'ra_off': -ra1[0], 'dec_off': dec1[0]}
+            return {'field': out, 'ra_off': -ra1, 'dec_off': dec1}
+        else:
+            return self._check_ccds_(out, ra1, dec1, single_val)
+
+    def _check_ccds_(self, mask, r, d, single_val=False):
         """
         """
         def _f_edge(x, y, c0, c1):
@@ -709,18 +780,43 @@ class SurveyField( BaseObject ):
                     (_f_edge(y, x, c_[2,::-1], c_[3,::-1]) < 0))
 
         b = np.array([_f_ccd(r[mask], d[mask], ccd)
-                      for ccd in c])
+                      for ccd in self.ccds])
         on_ccd = np.array([np.any(b[:,k]) for k in xrange(b.shape[1])])
         mask[mask] = on_ccd
-        n_ccd = np.nan * np.ones(len(mask))
+        n_ccd = -999999999 * np.ones(len(mask), dtype=int)
         n_ccd[mask] = np.array([np.where(b[:,k])[0]
-                                for k in np.where(on_ccd)[0]])
-        
+                                for k in np.where(on_ccd)[0]], dtype=int)
+
+        r_off = np.nan * np.ones(len(mask))
+        d_off = np.nan * np.ones(len(mask))
+        r_off[mask] = -(r[mask] - self.ccd_centers[0,n_ccd[mask]])
+        d_off[mask] = d[mask] - self.ccd_centers[1,n_ccd[mask]]
+
         if single_val:
-            return mask[0], n_ccd[0]
-        return mask, n_ccd
-        
-            
+            return {'field': mask[0],  'ccd': n_ccd[0],
+                    'ra_off': r_off[0], 'dec_off': d_off[0]}
+        return {'field': mask,  'ccd': n_ccd,
+                'ra_off': r_off, 'dec_off': d_off}
+
+    def pos2radec(self, r, d, ccd=None):
+        """
+        """
+        r = copy(r)
+        d = copy(d)
+
+        r *= -1
+        if self.ccds is not None:
+            r += self.ccd_centers[0, ccd]
+            d += self.ccd_centers[1, ccd]
+
+        r /= np.cos(d*_d2r)
+        r, d = rot_xz_sph(r, d, self.dec)
+        r += self.ra
+
+        r = ((r + 180) % 360 ) - 180
+
+        return r, d
+
     # ========================== #
     # = Utilities for plotting = #
     # ========================== #
@@ -739,22 +835,22 @@ class SurveyField( BaseObject ):
         dec1 = np.ones(steps) * (self.dec + self.height/2)
         ra1 = self.ra + (np.linspace(-self.width/2, self.width/2, steps)
                          / np.cos((self.dec + self.height/2)*_d2r))
-        
+
         dec2 = np.linspace(self.dec + self.height/2, self.dec - self.height/2, steps)
         ra2 = self.ra + self.width/2/np.cos(dec2*_d2r)
 
         dec3 = np.ones(steps) * (self.dec - self.height/2)
         ra3 = self.ra + (np.linspace(self.width/2, -self.width/2, steps)
                          / np.cos((self.dec - self.height/2)*_d2r))
-    
+
         dec4 = np.linspace(self.dec - self.height/2, self.dec + self.height/2, steps)
         ra4 = self.ra - self.width/2/np.cos(dec4*_d2r)
 
-        ra = ((np.concatenate((ra1, ra2, ra3, ra4)) + 180) % 360 ) - 180
+        ra = ((np.concatenate((ra1, ra2, ra3, ra4)) + 180) % 360 ) - 180 
         dec = np.concatenate((dec1, dec2, dec3, dec4))
 
         return ra, dec
-        
+
     def _determine_steps(self, max_stepsize=None):
         """
         """
@@ -772,7 +868,7 @@ class SurveyField( BaseObject ):
         """RA of field center"""
         return self._properties["ra"]
 
-    @property
+    @property 
     def dec(self):
         """Dec of field center"""
         return self._properties["dec"]
@@ -791,6 +887,17 @@ class SurveyField( BaseObject ):
     def max_stepsize(self):
         """maximum stepsize for boundary in degrees"""
         return self._properties["max_stepsize"]
+
+    @property
+    def ccds(self):
+        """list of ccd corners"""
+        return self._side_properties["ccds"]
+
+    @property
+    def ccd_centers(self):
+        """array of ccd centers"""
+        return np.array([[np.mean(ccd[:,k]) for ccd in self.ccds]
+                         for k in range(2)])
 
     # # --------------------
     # # - Derived Properties

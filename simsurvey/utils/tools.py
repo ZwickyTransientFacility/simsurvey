@@ -163,34 +163,34 @@ def shape_ajustment(X,Y,model_X,k=4,s=0,
         """
         flagx1 = (x1>=x2.min()) & (x1<=x2.max())
         flagx2 = (x2>=x1.min()) & (x2<=x1.max())
-        return flagx1,flagx2
-        
+        return flagx1, flagx2
+
     from scipy.interpolate import UnivariateSpline
     flagX,flagmodel = commun_wavelength(X,model_X)
     Yrebin = UnivariateSpline(X[flagX], Y[flagX],k=k,s=s)(model_X)
-    
+
     if len(Yrebin)==len(model_X):
         return Yrebin
     else:
         if verbose:
             print 'WARNING [shape_adjustment] non-mached shape ... I am fixing that'
-        
+
         YrebinOK = np.empty((len(Yrebin)+1),)
         YrebinOK[1:] = Yrebin
         YrebinOK[0]  = Yrebin[0]
-        
+
         return YrebinOK
 
 # --------------------------- #
 # - Array Tools             - #
 # --------------------------- #
-def get_progressbar(gen, **kwargs):
+def get_progressbar(gen):
     """
     """
     from astropy.utils.console import ProgressBar
-    
-    info = ipython_info() 
-    if info == 'terminal':
+
+    info = ipython_info()
+    if info == 'terminal' or info is None:
         gen = ProgressBar(gen)
     elif info == 'notebook':
         try:
