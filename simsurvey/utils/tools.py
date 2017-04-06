@@ -77,7 +77,7 @@ def range_length(start, end, step):
 def ipython_info():
     import sys
     return 'notebook' if 'ipykernel' in sys.modules \
-      else "terminal" if 'Ipython' in sys.modules \
+      else 'terminal' if 'Ipython' in sys.modules \
       else None
 
 def load_pkl(filename):
@@ -198,7 +198,7 @@ def get_progressbar(gen):
         except ImportError as e:
             warnings.warn('ProgressBar in notebook not working. Is ipywidgets installed?')
             raise e
-    elif info is None:
+    else:
         msg = 'Could not determine ipython mode.'
         warnings.warn(msg + ' Not using ProgressBar.')
         raise IOError(msg)
