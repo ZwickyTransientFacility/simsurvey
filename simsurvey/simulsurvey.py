@@ -5,7 +5,7 @@
 import warnings
 import numpy as np
 import cPickle
-from copy import deepcopy
+from copy import copy, deepcopy
 from collections import OrderedDict as odict
 from itertools import izip
 
@@ -129,6 +129,12 @@ class SimulSurvey( BaseObject ):
             # Get unperturbed lc from sncosmo
             lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                      scatter=False)[0]
+
+            # Make sure that lc points outside model definition are zero
+            self.generator.model.set(**p)
+            outside = ((lc['time'] < self.generator.model.mintime()) |
+                       (lc['time'] > self.generator.model.maxtime()))
+            lc['flux'][outside] = 0.
 
             if 'field' in obs.colnames:
                 lc = hstack((lc, obs[('field',)]))
@@ -315,8 +321,8 @@ class SimulSurvey( BaseObject ):
         # - Based on the model get a reasonable time scale for each transient
         mjd = self.generator.mjd
         z = np.array(self.generator.zcmb)
-        mjd_range = [mjd + self.generator.model.mintime() * (1 + z), 
-                     mjd + self.generator.model.maxtime() * (1 + z)]
+        mjd_range = [mjd + self.generator.model._source.minphase()*(1+z) - 14, 
+                     mjd + self.generator.model._source.maxphase()*(1+z)]
 
         # -----------------------
         # - Let's build the tables
@@ -618,14 +624,14 @@ class SurveyPlan( BaseObject ):
             loaded['filter'] = [band_dict[band] for band in loaded['filter']]
         else:
             loaded['filter'] = loaded['filter']
- 
+
         self.add_observation(loaded['expMJD'],loaded['filter'],loaded['skynoise'],
                              ra=loaded['fieldRA'],dec=loaded['fieldDec'],
                              field=loaded['fieldID'])
 
         self.set_fields(ra=fields['fieldRA'], dec=fields['fieldDec'],
                         field_id=fields['fieldID'], ccds=self.ccds)
-        
+
     # ================================== #
     # = Observation time determination = #
     # ================================== #
@@ -640,7 +646,7 @@ class SurveyPlan( BaseObject ):
             return tmp['field'], tmp['ccd']
         else:
             return None, None
-        
+
     def get_non_field_obs(self, ra, dec, progress_bar=False):
         """
         """
