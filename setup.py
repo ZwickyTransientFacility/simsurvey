@@ -13,7 +13,7 @@ MAINTAINER = 'Ulrich Feindt'
 MAINTAINER_EMAIL = 'ulrich.feindt@fysik.su.se'
 URL = 'https://github.com/MickaelRigault/simsurvey/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/MickaelRigault/simsurvey/tarball/0.2.3'
+DOWNLOAD_URL = 'https://github.com/MickaelRigault/simsurvey/tarball/0.2.4'
 VERSION = '0.2.4'
 
 try:
