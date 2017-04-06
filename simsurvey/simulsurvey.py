@@ -81,6 +81,7 @@ class SimulSurvey( BaseObject ):
         """
         args = range_args(self.generator.ntransient, *args)
         progress_bar = kwargs.pop('progress_bar', False)
+        notebook = kwargs.pop('notebook', False)
 
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
@@ -93,15 +94,14 @@ class SimulSurvey( BaseObject ):
         progress_bar_success = False
         
         if progress_bar:
-            self._assign_obs_fields_(progress_bar=True)
-            self._assign_non_field_obs_(progress_bar=True)
+            self._assign_obs_fields_(progress_bar=True, notebook=notebook)
+            self._assign_non_field_obs_(progress_bar=True, notebook=notebook)
             
             try:
                 print 'Generating lightcurves'
                 ntransient = range_length(*args)
-                bar = get_progressbar(ntransient)
 
-                with get_progressbar(ntransient) as bar:
+                with get_progressbar(ntransient, notebook=notebook) as bar:
                     for k, p, obs in gen:
                         if obs is not None:
                             lcs.add(self._get_lightcurve_(p, obs, k))
@@ -342,14 +342,15 @@ class SimulSurvey( BaseObject ):
             else:
                 yield None
 
-    def _assign_obs_fields_(self, progress_bar=False):
+    def _assign_obs_fields_(self, progress_bar=False, notebook=False):
         """
         """
         f, c = self.plan.get_obs_fields(
             self.generator.ra,
             self.generator.dec,
             field_id=np.unique(self.cadence['field']),
-            progress_bar=progress_bar
+            progress_bar=progress_bar,
+            notebook=notebook
         )
         self._derived_properties["obs_fields"] = f
         self._derived_properties["obs_ccds"] = c
@@ -360,13 +361,14 @@ class SimulSurvey( BaseObject ):
         self._derived_properties["obs_fields"] = None
         self._derived_properties["obs_ccds"] = None
 
-    def _assign_non_field_obs_(self, progress_bar=False):
+    def _assign_non_field_obs_(self, progress_bar=False, notebook=False):
         """
         """
         f, c = self.plan.get_non_field_obs(
             self.generator.ra,
             self.generator.dec,
-            progress_bar=progress_bar
+            progress_bar=progress_bar,
+            notebook=notebook
         )
         self._derived_properties["non_field_obs"] = f
         self._derived_properties["non_field_obs_ccds"] = c
@@ -630,18 +632,19 @@ class SurveyPlan( BaseObject ):
     # = Observation time determination = #
     # ================================== #
     def get_obs_fields(self, ra, dec, field_id=None,
-                       progress_bar=False):
+                       progress_bar=False, notebook=False):
         """
         """
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
             tmp = self.fields.coord2field(ra, dec, field_id=field_id,
-                                          progress_bar=progress_bar)
+                                          progress_bar=progress_bar, 
+                                          notebook=notebook)
             return tmp['field'], tmp['ccd']
         else:
             return None, None
         
-    def get_non_field_obs(self, ra, dec, progress_bar=False):
+    def get_non_field_obs(self, ra, dec, progress_bar=False, notebook=False):
         """
         """
         observed = False
@@ -650,7 +653,7 @@ class SurveyPlan( BaseObject ):
         if progress_bar and len(gen) > 0:
             try:
                 print "Finding transients observed in custom pointings"
-                gen = get_progressbar(gen)
+                gen = get_progressbar(gen, notebook=notebook)
             except ImportError:
                 pass
             except IOError:
