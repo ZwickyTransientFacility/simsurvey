@@ -640,7 +640,7 @@ class SurveyPlan( BaseObject ):
             tmp = self.fields.coord2field(ra, dec, field_id=field_id,
                                           progress_bar=progress_bar, 
                                           notebook=notebook)
-            return tmp['field'], tmp['ccd']
+            return tmp['field'], tmp.get('ccd', None)
         else:
             return None, None
         
