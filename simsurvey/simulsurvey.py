@@ -5,7 +5,7 @@
 import warnings
 import numpy as np
 import cPickle
-from copy import deepcopy
+from copy import copy, deepcopy
 from collections import OrderedDict as odict
 from itertools import izip
 
@@ -34,14 +34,14 @@ class SimulSurvey( BaseObject ):
     __nature__ = "SimulSurvey"
 
     PROPERTIES         = ["generator", "instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence", "blinded_bias"]
+    SIDE_PROPERTIES    = ["cadence", "blinded_bias", "phase_range"]
     DERIVED_PROPERTIES = ["obs_fields", "obs_ccd",
                           "non_field_obs", "non_field_obs_ccd",
                           "non_field_obs_exist"]
 
     def __init__(self, generator=None, plan=None,
                  instprop=None, blinded_bias=None,
-                 empty=False):
+                 phase_range=None, empty=False):
         """
         Parameters:
         ----------
@@ -52,9 +52,9 @@ class SimulSurvey( BaseObject ):
         if empty:
             return
 
-        self.create(generator, plan, instprop, blinded_bias)
+        self.create(generator, plan, instprop, blinded_bias, phase_range)
 
-    def create(self, generator, plan, instprop, blinded_bias):
+    def create(self, generator, plan, instprop, blinded_bias, phase_range):
         """
         """
         if generator is not None:
@@ -68,6 +68,9 @@ class SimulSurvey( BaseObject ):
 
         if blinded_bias is not None:
             self.set_blinded_bias(blinded_bias)
+
+        if phase_range is not None:
+            self.set_phase_range(phase_range)
 
     # =========================== #
     # = Main Methods            = #
@@ -129,6 +132,12 @@ class SimulSurvey( BaseObject ):
             # Get unperturbed lc from sncosmo
             lc = sncosmo.realize_lcs(obs, self.generator.model, [p],
                                      scatter=False)[0]
+
+            # Make sure that lc points outside model definition are zero
+            self.generator.model.set(**p)
+            outside = ((lc['time'] < self.generator.model.mintime()) |
+                       (lc['time'] > self.generator.model.maxtime()))
+            lc['flux'][outside] = 0.
 
             if 'field' in obs.colnames:
                 lc = hstack((lc, obs[('field',)]))
@@ -250,6 +259,13 @@ class SimulSurvey( BaseObject ):
         self._side_properties['blinded_bias'] = {k: np.random.uniform(-v, v) 
                                             for k, v in bias.items()}
 
+    def set_phase_range(self, phase_range):
+        """
+        """
+        if len(phase_range) != 2:
+            raise ValueError('phase_range must contain exactly two floats')
+        self._side_properties['phase_range'] = phase_range
+
     # ---------------------- #
     # - Add Stuffs         - #
     # ---------------------- #
@@ -315,8 +331,8 @@ class SimulSurvey( BaseObject ):
         # - Based on the model get a reasonable time scale for each transient
         mjd = self.generator.mjd
         z = np.array(self.generator.zcmb)
-        mjd_range = [mjd + self.generator.model.mintime() * (1 + z), 
-                     mjd + self.generator.model.maxtime() * (1 + z)]
+        mjd_range = [mjd + self.phase_range[0] * (1+z), 
+                     mjd + self.phase_range[1] * (1+z)]
 
         # -----------------------
         # - Let's build the tables
@@ -418,6 +434,16 @@ class SimulSurvey( BaseObject ):
     def blinded_bias(self):
         """Blinded bias applied to specific bands for all observations"""
         return self._side_properties["blinded_bias"]
+
+    @property
+    def phase_range(self):
+        """Phase range for lightcurve generation, default derived from model source
+        with 14 rest-frame days prior to t0"""
+        if self._side_properties["phase_range"] is not None:
+            return self._side_properties["phase_range"]
+        else:
+            return (self.generator.model._source.minphase() - 14,
+                    self.generator.model._source.maxphase())
 
     # ------------------
     # - Derived values
@@ -620,14 +646,14 @@ class SurveyPlan( BaseObject ):
             loaded['filter'] = [band_dict[band] for band in loaded['filter']]
         else:
             loaded['filter'] = loaded['filter']
- 
+
         self.add_observation(loaded['expMJD'],loaded['filter'],loaded['skynoise'],
                              ra=loaded['fieldRA'],dec=loaded['fieldDec'],
                              field=loaded['fieldID'])
 
         self.set_fields(ra=fields['fieldRA'], dec=fields['fieldDec'],
                         field_id=fields['fieldID'], ccds=self.ccds)
-        
+
     # ================================== #
     # = Observation time determination = #
     # ================================== #
@@ -643,7 +669,7 @@ class SurveyPlan( BaseObject ):
             return tmp['field'], tmp.get('ccd', None)
         else:
             return None, None
-        
+
     def get_non_field_obs(self, ra, dec, progress_bar=False, notebook=False):
         """
         """
