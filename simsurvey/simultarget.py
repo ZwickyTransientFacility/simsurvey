@@ -18,7 +18,8 @@ from utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
-__all__ = ["get_sn_generator","get_transient_generator","generate_transients"]
+__all__ = ["get_sn_generator", "get_transient_generator",
+           "generate_transients", "generate_lightcurves"]
 
 
 def get_sn_generator(zrange,ratekind="basic",**kwargs):
@@ -55,7 +56,7 @@ def generate_transients(zrange,**kwargs):
     """
     return get_transient_generator(zrange,**kwargs).transients
 
-def generate_lightcurvess(zrange, obs, **kwargs):
+def generate_lightcurves(zrange, obs, **kwargs):
     """
     This module calls get_transient_generator to create the
     TransientGenerator object and then generates lightcurves based
@@ -283,7 +284,7 @@ class TransientGenerator( BaseObject ):
         """Realize lightcurves based on the randomized lightcurve parameters
         and a single set of observations"""
         params = self.get_lightcurve_full_param(full_out=False)
-        return sncosmo.realize_lcs(obs, self.model, [params], **kwargs)
+        return sncosmo.realize_lcs(obs, self.model, params, **kwargs)
 
     # --------------------------- #
     # - Plots Methods           - #
