@@ -18,7 +18,8 @@ from utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
-__all__ = ["get_sn_generator","get_transient_generator","generate_transients"]
+__all__ = ["get_sn_generator", "get_transient_generator",
+           "generate_transients", "generate_lightcurves"]
 
 
 def get_sn_generator(zrange,ratekind="basic",**kwargs):
@@ -54,6 +55,18 @@ def generate_transients(zrange,**kwargs):
     # - HERE COPY PASTE the transient_generator docstring
     """
     return get_transient_generator(zrange,**kwargs).transients
+
+def generate_lightcurves(zrange, obs, **kwargs):
+    """
+    This module calls get_transient_generator to create the
+    TransientGenerator object and then generates lightcurves based
+    on the random transients 
+
+    # - HERE COPY PASTE the transient_generator docstring
+    """
+    tr =  get_transient_generator(zrange,**kwargs)
+
+    return tr.get_lightcurves(obs)
 
 
 #######################################
@@ -248,16 +261,30 @@ class TransientGenerator( BaseObject ):
 
         return np.array(out)
 
-    def get_lightcurve_full_param(self, *args):
+    def get_lightcurve_full_param(self, *args, **kwargs):
         """Transient lightcurve parameters"""
+        full_out = kwargs.get("full_out", True)
         for i in xrange(*range_args(self.ntransient, *args)):
-            yield dict(z=self.zcmb[i], t0=self.mjd[i],
-                       ra=self.ra[i], dec=self.dec[i],
-                       mwebv_sfd98=(self.mwebv_sfd98[i]
-                                    if self.has_mwebv_sfd98 else 0),
+            out = dict(z=self.zcmb[i], t0=self.mjd[i],
                        mwebv=(self.mwebv[i]
                               if self.has_mwebv_sfd98 else 0),
                        **{p: v[i] for p, v in self.lightcurve.items()})
+
+            if full_out:
+                out["ra"] = self.ra[i]
+                out["dec"] = self.dec[i]
+                if self.has_mwebv_sfd98:
+                    out["mwebv_sfd98"] = self.mwebv_sfd98[i]
+                else:
+                    out["mwebv_sfd98"] = 0
+
+            yield out
+
+    def get_lightcurves(self, obs, **kwargs):
+        """Realize lightcurves based on the randomized lightcurve parameters
+        and a single set of observations"""
+        params = self.get_lightcurve_full_param(full_out=False)
+        return sncosmo.realize_lcs(obs, self.model, params, **kwargs)
 
     # --------------------------- #
     # - Plots Methods           - #

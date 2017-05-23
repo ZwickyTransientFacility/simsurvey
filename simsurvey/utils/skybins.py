@@ -480,7 +480,7 @@ class SurveyFieldBins( BaseBins ):
                          for f in self.fields])
 
     def coord2field(self, ra, dec, field_id=None,
-                    progress_bar=False):
+                    progress_bar=False, notebook=False):
         """
         Return the lists of fields in which a list of coordinates fall.
         Keep in mind that the fields will likely overlap.
@@ -500,7 +500,7 @@ class SurveyFieldBins( BaseBins ):
         if progress_bar:
             try:
                 print "Determining field IDs for all objects"
-                gen = get_progressbar(gen)
+                gen = get_progressbar(gen, notebook=notebook)
             except ImportError:
                 pass
             except IOError:

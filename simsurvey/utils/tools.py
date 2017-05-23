@@ -77,7 +77,7 @@ def range_length(start, end, step):
 def ipython_info():
     import sys
     return 'notebook' if 'ipykernel' in sys.modules \
-      else "terminal" if 'Ipython' in sys.modules \
+      else 'terminal' if 'Ipython' in sys.modules \
       else None
 
 def load_pkl(filename):
@@ -184,23 +184,18 @@ def shape_ajustment(X,Y,model_X,k=4,s=0,
 # --------------------------- #
 # - Array Tools             - #
 # --------------------------- #
-def get_progressbar(gen):
+def get_progressbar(gen, notebook=False):
     """
     """
     from astropy.utils.console import ProgressBar
 
-    info = ipython_info()
-    if info == 'terminal' or info is None:
+    if not notebook:
         gen = ProgressBar(gen)
-    elif info == 'notebook':
+    else:
         try:
             gen = ProgressBar(gen, ipython_widget=True)
         except ImportError as e:
             warnings.warn('ProgressBar in notebook not working. Is ipywidgets installed?')
             raise e
-    elif info is None:
-        msg = 'Could not determine ipython mode.'
-        warnings.warn(msg + ' Not using ProgressBar.')
-        raise IOError(msg)
 
     return gen

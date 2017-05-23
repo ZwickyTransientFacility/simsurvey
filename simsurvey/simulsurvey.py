@@ -34,14 +34,14 @@ class SimulSurvey( BaseObject ):
     __nature__ = "SimulSurvey"
 
     PROPERTIES         = ["generator", "instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence", "blinded_bias"]
+    SIDE_PROPERTIES    = ["cadence", "blinded_bias", "phase_range"]
     DERIVED_PROPERTIES = ["obs_fields", "obs_ccd",
                           "non_field_obs", "non_field_obs_ccd",
                           "non_field_obs_exist"]
 
     def __init__(self, generator=None, plan=None,
                  instprop=None, blinded_bias=None,
-                 empty=False):
+                 phase_range=None, empty=False):
         """
         Parameters:
         ----------
@@ -52,9 +52,9 @@ class SimulSurvey( BaseObject ):
         if empty:
             return
 
-        self.create(generator, plan, instprop, blinded_bias)
+        self.create(generator, plan, instprop, blinded_bias, phase_range)
 
-    def create(self, generator, plan, instprop, blinded_bias):
+    def create(self, generator, plan, instprop, blinded_bias, phase_range):
         """
         """
         if generator is not None:
@@ -69,6 +69,9 @@ class SimulSurvey( BaseObject ):
         if blinded_bias is not None:
             self.set_blinded_bias(blinded_bias)
 
+        if phase_range is not None:
+            self.set_phase_range(phase_range)
+
     # =========================== #
     # = Main Methods            = #
     # =========================== #
@@ -81,6 +84,7 @@ class SimulSurvey( BaseObject ):
         """
         args = range_args(self.generator.ntransient, *args)
         progress_bar = kwargs.pop('progress_bar', False)
+        notebook = kwargs.pop('notebook', False)
 
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
@@ -93,15 +97,14 @@ class SimulSurvey( BaseObject ):
         progress_bar_success = False
         
         if progress_bar:
-            self._assign_obs_fields_(progress_bar=True)
-            self._assign_non_field_obs_(progress_bar=True)
+            self._assign_obs_fields_(progress_bar=True, notebook=notebook)
+            self._assign_non_field_obs_(progress_bar=True, notebook=notebook)
             
             try:
                 print 'Generating lightcurves'
                 ntransient = range_length(*args)
-                bar = get_progressbar(ntransient)
 
-                with get_progressbar(ntransient) as bar:
+                with get_progressbar(ntransient, notebook=notebook) as bar:
                     for k, p, obs in gen:
                         if obs is not None:
                             lcs.add(self._get_lightcurve_(p, obs, k))
@@ -256,6 +259,13 @@ class SimulSurvey( BaseObject ):
         self._side_properties['blinded_bias'] = {k: np.random.uniform(-v, v) 
                                             for k, v in bias.items()}
 
+    def set_phase_range(self, phase_range):
+        """
+        """
+        if len(phase_range) != 2:
+            raise ValueError('phase_range must contain exactly two floats')
+        self._side_properties['phase_range'] = phase_range
+
     # ---------------------- #
     # - Add Stuffs         - #
     # ---------------------- #
@@ -321,8 +331,8 @@ class SimulSurvey( BaseObject ):
         # - Based on the model get a reasonable time scale for each transient
         mjd = self.generator.mjd
         z = np.array(self.generator.zcmb)
-        mjd_range = [mjd + self.generator.model._source.minphase()*(1+z) - 14, 
-                     mjd + self.generator.model._source.maxphase()*(1+z)]
+        mjd_range = [mjd + self.phase_range[0] * (1+z), 
+                     mjd + self.phase_range[1] * (1+z)]
 
         # -----------------------
         # - Let's build the tables
@@ -348,14 +358,15 @@ class SimulSurvey( BaseObject ):
             else:
                 yield None
 
-    def _assign_obs_fields_(self, progress_bar=False):
+    def _assign_obs_fields_(self, progress_bar=False, notebook=False):
         """
         """
         f, c = self.plan.get_obs_fields(
             self.generator.ra,
             self.generator.dec,
             field_id=np.unique(self.cadence['field']),
-            progress_bar=progress_bar
+            progress_bar=progress_bar,
+            notebook=notebook
         )
         self._derived_properties["obs_fields"] = f
         self._derived_properties["obs_ccds"] = c
@@ -366,13 +377,14 @@ class SimulSurvey( BaseObject ):
         self._derived_properties["obs_fields"] = None
         self._derived_properties["obs_ccds"] = None
 
-    def _assign_non_field_obs_(self, progress_bar=False):
+    def _assign_non_field_obs_(self, progress_bar=False, notebook=False):
         """
         """
         f, c = self.plan.get_non_field_obs(
             self.generator.ra,
             self.generator.dec,
-            progress_bar=progress_bar
+            progress_bar=progress_bar,
+            notebook=notebook
         )
         self._derived_properties["non_field_obs"] = f
         self._derived_properties["non_field_obs_ccds"] = c
@@ -422,6 +434,16 @@ class SimulSurvey( BaseObject ):
     def blinded_bias(self):
         """Blinded bias applied to specific bands for all observations"""
         return self._side_properties["blinded_bias"]
+
+    @property
+    def phase_range(self):
+        """Phase range for lightcurve generation, default derived from model source
+        with 14 rest-frame days prior to t0"""
+        if self._side_properties["phase_range"] is not None:
+            return self._side_properties["phase_range"]
+        else:
+            return (self.generator.model._source.minphase() - 14,
+                    self.generator.model._source.maxphase())
 
     # ------------------
     # - Derived values
@@ -636,18 +658,19 @@ class SurveyPlan( BaseObject ):
     # = Observation time determination = #
     # ================================== #
     def get_obs_fields(self, ra, dec, field_id=None,
-                       progress_bar=False):
+                       progress_bar=False, notebook=False):
         """
         """
         if (self.fields is not None and 
             not np.all(np.isnan(self.cadence["field"]))):
             tmp = self.fields.coord2field(ra, dec, field_id=field_id,
-                                          progress_bar=progress_bar)
-            return tmp['field'], tmp['ccd']
+                                          progress_bar=progress_bar, 
+                                          notebook=notebook)
+            return tmp['field'], tmp.get('ccd', None)
         else:
             return None, None
 
-    def get_non_field_obs(self, ra, dec, progress_bar=False):
+    def get_non_field_obs(self, ra, dec, progress_bar=False, notebook=False):
         """
         """
         observed = False
@@ -656,7 +679,7 @@ class SurveyPlan( BaseObject ):
         if progress_bar and len(gen) > 0:
             try:
                 print "Finding transients observed in custom pointings"
-                gen = get_progressbar(gen)
+                gen = get_progressbar(gen, notebook=notebook)
             except ImportError:
                 pass
             except IOError:
