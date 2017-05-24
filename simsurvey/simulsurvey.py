@@ -10,7 +10,7 @@ from collections import OrderedDict as odict
 from itertools import izip
 
 import sncosmo
-from sncosmo.photdata      import dict_to_array
+from sncosmo.utils         import dict_to_array
 from astropy.table         import Table, vstack, hstack
 
 from propobject import BaseObject
