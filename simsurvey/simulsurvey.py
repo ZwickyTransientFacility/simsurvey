@@ -109,7 +109,9 @@ class SimulSurvey( BaseObject ):
                         if obs is not None:
                             lcs.add(self._get_lightcurve_(p, obs, k))
                             bar.update()
-                            
+                        else:
+                            bar.update()
+
                 progress_bar_success = True
             except ImportError:
                 progress_bar_success = False
