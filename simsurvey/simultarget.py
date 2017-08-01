@@ -30,7 +30,7 @@ def get_sn_generator(zrange,ratekind="basic",**kwargs):
                          **kwargs)
 
 def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
-                        ra_range=[-180,180], dec_range=[-90,90],
+                        ra_range=[0,360], dec_range=[-90,90],
                         ntransient=None,
                         **kwargs):
     """
@@ -87,7 +87,7 @@ class TransientGenerator( BaseObject ):
 
     def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,# How deep
                  mjd_range=[57754.0,58849.0],
-                 ra_range=(-180,180),dec_range=(-90,90), # Where, see also kwargs
+                 ra_range=(0,360),dec_range=(-90,90), # Where, see also kwargs
                  ntransient=None,empty=False,sfd98_dir=None,**kwargs):
         """
         """
@@ -105,7 +105,7 @@ class TransientGenerator( BaseObject ):
     def create(self,zrange,ratekind="basic",ratefunc=None,
                ntransient=None,type_=None,
                mjd_range=[57754.0,58849.0],
-               ra_range=(-180,180),dec_range=(-90,90),
+               ra_range=(0,360),dec_range=(-90,90),
                mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebv=0.01):
         """
         """

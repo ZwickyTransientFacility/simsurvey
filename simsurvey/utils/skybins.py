@@ -383,7 +383,7 @@ class HealpixBins( BaseBins ):
         bd = hp.boundaries(self.nside, k, step=steps, nest=self.nest)
         dec_raw, ra_raw = hp.vec2ang(np.transpose(bd))
 
-        ra = ((ra_raw / _d2r + 180) % 360) - 180
+        ra = (ra_raw / _d2r) % 360
         dec = 90 - dec_raw / _d2r
 
         return self.split_bin(ra, dec, max_stepsize, edge) 
@@ -813,7 +813,7 @@ class SurveyField( BaseObject ):
         r, d = rot_xz_sph(r, d, self.dec)
         r += self.ra
 
-        r = ((r + 180) % 360 ) - 180
+        r = r % 360
 
         return r, d
 
@@ -846,7 +846,7 @@ class SurveyField( BaseObject ):
         dec4 = np.linspace(self.dec - self.height/2, self.dec + self.height/2, steps)
         ra4 = self.ra - self.width/2/np.cos(dec4*_d2r)
 
-        ra = ((np.concatenate((ra1, ra2, ra3, ra4)) + 180) % 360 ) - 180 
+        ra = (np.concatenate((ra1, ra2, ra3, ra4)) % 360 )  
         dec = np.concatenate((dec1, dec2, dec3, dec4))
 
         return ra, dec
