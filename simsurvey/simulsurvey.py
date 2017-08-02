@@ -601,7 +601,8 @@ class SurveyPlan( BaseObject ):
     # - Load Method        - #
     # ---------------------- #
     def load_opsim(self, filename, survey_table='Summary', field_table='Field',
-                   band_dict=None, default_depth=21, zp=30):
+                   band_dict=None, skybright_key='filtSkyBright', default_skybright=21,
+                   zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -627,10 +628,12 @@ class SurveyPlan( BaseObject ):
                 loaded[key] = np.array([a[0] for a in tmp])
 
             return loaded
-        
-        loaded = _fetch(['expMJD', 'filter', 'fieldRA', 'fieldDec',
-                         'fieldID', 'fiveSigmaDepth'],
-                        survey_table)
+
+        load_keys = ['expMJD', 'filter', 'fieldRA', 'fieldDec', 'fieldID']
+        if skybright_key is not None:
+            load_keys.append(skybright_key)
+
+        loaded = _fetch(load_keys, survey_table)
         fields = _fetch(['fieldID', 'fieldRA', 'fieldDec'],
                        field_table)
         
@@ -639,11 +642,14 @@ class SurveyPlan( BaseObject ):
         loaded['fieldRA'] /= _d2r
         loaded['fieldDec'] /= _d2r
 
-        loaded['fiveSigmaDepth'] = np.array([(d if d is not None else default_depth)
-                                    for d in loaded['fiveSigmaDepth']])
-        
-        loaded['skynoise'] = 10 ** (-0.4 * (loaded['fiveSigmaDepth']-zp)) / 5
-        
+        if skybright_key is not None:
+            loaded[skybright_key] = np.array([(d if d is not None else default_skybright)
+                                                 for d in loaded[skybright_key]])
+            loaded['skynoise'] = 10 ** (-0.4 * (loaded[skybright_key] - zp))
+        else:
+            loaded['skynoise'] = np.ones(len(loaded['fieldRA']))
+            loaded['skynoise'] *= 10 ** (-0.4 * (default_skybright - zp))
+
         if band_dict is not None:
             loaded['filter'] = [band_dict[band] for band in loaded['filter']]
         else:
