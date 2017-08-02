@@ -601,8 +601,8 @@ class SurveyPlan( BaseObject ):
     # - Load Method        - #
     # ---------------------- #
     def load_opsim(self, filename, survey_table='Summary', field_table='Field',
-                   band_dict=None, skybright_key='filtSkyBright', default_skybright=21,
-                   zp=30):
+                   band_dict=None, skybright_key='filtSkyBright', skybright_factor=1.,
+                   default_skybright=21, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -645,10 +645,10 @@ class SurveyPlan( BaseObject ):
         if skybright_key is not None:
             loaded[skybright_key] = np.array([(d if d is not None else default_skybright)
                                                  for d in loaded[skybright_key]])
-            loaded['skynoise'] = 10 ** (-0.4 * (loaded[skybright_key] - zp))
+            loaded['skynoise'] = 10 ** (-0.4 * (loaded[skybright_key] - zp)) / skybright_factor
         else:
             loaded['skynoise'] = np.ones(len(loaded['fieldRA']))
-            loaded['skynoise'] *= 10 ** (-0.4 * (default_skybright - zp))
+            loaded['skynoise'] *= 10 ** (-0.4 * (default_skybright - zp)) / skybright_factor
 
         if band_dict is not None:
             loaded['filter'] = [band_dict[band] for band in loaded['filter']]
