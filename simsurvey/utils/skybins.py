@@ -711,7 +711,7 @@ class SurveyField( BaseObject ):
         self._properties["max_stepsize"] = max_stepsize
 
         if ccds is not None:
-            self._side_properties["ccds"] = ccds
+            self._set_ccds_(ccds)
 
         #self.__update__()
 
@@ -774,17 +774,17 @@ class SurveyField( BaseObject ):
             return y - c0[1] - (c1[1] - c0[1])/(c1[0] - c0[0]) * (x - c0[0])
 
         def _f_ccd(x, y, c_):
-            return ((_f_edge(x, y, c_[0], c_[2]) > 0) &
-                    (_f_edge(x, y, c_[1], c_[3]) < 0) &
+            return ((_f_edge(x, y, c_[0], c_[3]) > 0) &
+                    (_f_edge(x, y, c_[1], c_[2]) < 0) &
                     (_f_edge(y, x, c_[0,::-1], c_[1,::-1]) > 0) &
-                    (_f_edge(y, x, c_[2,::-1], c_[3,::-1]) < 0))
+                    (_f_edge(y, x, c_[3,::-1], c_[2,::-1]) < 0))
 
         b = np.array([_f_ccd(r[mask], d[mask], ccd)
                       for ccd in self.ccds])
         on_ccd = np.array([np.any(b[:,k]) for k in xrange(b.shape[1])])
         mask[mask] = on_ccd
         n_ccd = -999999999 * np.ones(len(mask), dtype=int)
-        n_ccd[mask] = np.array([np.where(b[:,k])[0]
+        n_ccd[mask] = np.array([np.where(b[:,k])[0][0]
                                 for k in np.where(on_ccd)[0]], dtype=int)
 
         r_off = np.nan * np.ones(len(mask))
@@ -898,6 +898,33 @@ class SurveyField( BaseObject ):
         """array of ccd centers"""
         return np.array([[np.mean(ccd[:,k]) for ccd in self.ccds]
                          for k in range(2)])
+
+    def _set_ccds_(self, ccds):
+        """Set the CCD boundaries and sort them in the correct order"""
+        self._side_properties["ccds"] = []
+        for c_ in ccds:
+            center_ = np.array([np.mean(c_[:,k]) for k in range(2)])
+            tmp = np.zeros((4,2))
+            for c__ in c_:
+                if (c_[0] - center_[0]) > 0:
+                    # Right
+                    if (c_[1] - center_[1]) > 0:
+                        # Top
+                        tmp[2] = c__
+                    else:
+                        # Bottom
+                        tmp[3] = c__
+                else:
+                    # Left
+                    if (c_[1] - center_[1]) > 0:
+                        # Top
+                        tmp[1] = c__
+                    else:
+                        # Bottom
+                        tmp[0] = c__
+
+            self._side_properties["ccds"].append(tmp)
+
 
     # # --------------------
     # # - Derived Properties
