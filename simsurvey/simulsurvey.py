@@ -529,7 +529,8 @@ class SurveyPlan( BaseObject ):
             return
 
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field,fields=fields, load_opsim=load_opsim, **kwargs)
+                    obs_field=obs_field, width=width, height=height, fields=fields,
+                    load_opsim=load_opsim, **kwargs)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
                obs_field=None, width=7.295, height=7.465, fields=None, 
