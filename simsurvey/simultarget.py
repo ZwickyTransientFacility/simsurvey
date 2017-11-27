@@ -85,9 +85,9 @@ class TransientGenerator( BaseObject ):
     DERIVED_PROPERTIES = ["simul_parameters", "mwebv", "mwebv_sfd98", 
                           "has_mwebv_sfd98", "lightcurve_parameters"]
 
-    def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,# How deep
-                 mjd_range=[57754.0,58849.0],
-                 ra_range=(0,360),dec_range=(-90,90), # Where, see also kwargs
+    def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,
+                 load=False, mjd_range=[57754.0,58849.0],
+                 ra_range=(0,360),dec_range=(-90,90), 
                  ntransient=None,empty=False,sfd98_dir=None,**kwargs):
         """
         """
@@ -97,13 +97,13 @@ class TransientGenerator( BaseObject ):
 
         self.create(zrange,
                     ratekind=ratekind, ratefunc=ratefunc, 
-                    ntransient=ntransient,
+                    ntransient=ntransient, load=load,
                     ra_range=ra_range, dec_range=dec_range,
-                    mjd_range=mjd_range,sfd98_dir=sfd98_dir,
+                    mjd_range=mjd_range, sfd98_dir=sfd98_dir,
                     **kwargs)
 
     def create(self,zrange,ratekind="basic",ratefunc=None,
-               ntransient=None,type_=None,
+               ntransient=None,type_=None,load=False,
                mjd_range=[57754.0,58849.0],
                ra_range=(0,360),dec_range=(-90,90),
                mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebv=0.01):
@@ -116,23 +116,57 @@ class TransientGenerator( BaseObject ):
         # * Create      * #
         # *************** #
         # -- This will be directly used as random.radec inputs
-        self.set_event_parameters(update=False,
-                                  **{"ra_range":ra_range,"dec_range":dec_range,
-                                   "zcmb_range":zrange,"mjd_range":mjd_range,
-                                   "mw_exclusion":mw_exclusion})
-
-        self.set_transient_parameters(ratekind=ratekind,ratefunc=ratefunc,
-                                      type_=type_, ntransient=ntransient,
-                                      update=False,**transientprop)
-
         self.set_sfd98_dir(sfd98_dir)
-        self.set_err_mwebv(err_mwebv)
-        
-        self._update_()
+
+        if not load:
+            self.set_event_parameters(update=False,
+                                      **{"ra_range":ra_range,"dec_range":dec_range,
+                                         "zcmb_range":zrange,"mjd_range":mjd_range,
+                                         "mw_exclusion":mw_exclusion})
+
+            self.set_transient_parameters(ratekind=ratekind,ratefunc=ratefunc,
+                                          type_=type_, ntransient=ntransient,
+                                          update=False,**transientprop)
+
+            self.set_err_mwebv(err_mwebv)
+            self._update_()
+        else:
+            self.load(load)
+            self.set_transient_parameters(ratekind=None,ratefunc=ratefunc,
+                                          type_=None, ntransient=None,
+                                          update=False,**transientprop)
+
 
     # =========================== #
     # = Main Methods            = #
     # =========================== #
+    def load(self, filename):
+        """
+        """
+        loaded = cPickle.load(open(filename))
+
+        for k, v in loaded['properties'].items():
+            self._properties[k] = v
+        for k, v in loaded['side_properties'].items():
+            self._side_properties[k] = v
+        for k, v in loaded['derived_properties'].items():
+            self._derived_properties[k] = v
+
+    def save(self, filename):
+        """
+        """
+        prop_save = ["transient_coverage", "event_coverage"]
+        side_save = ["err_mwebv"]
+        deri_save = ["simul_parameters", "mwebv", "mwebv_sfd98", 
+                     "lightcurve_parameters"]
+
+        out = {
+            "properties": {k: self._properties[k] for k in prop_save},
+            "side_properties": {k: self._side_properties[k] for k in prop_save},
+            "derived_properties": {k: self._derived_properties[k] for k in prop_save},
+        }
+        cPickle.dump(out, open(filename, 'w'))
+
     # --------------------------- #
     # - Set Methods             - #
     # --------------------------- #
@@ -157,8 +191,8 @@ class TransientGenerator( BaseObject ):
         if update:
             self._update_()
 
-    def set_transient_parameters(self,ratekind="basic",ratefunc=None,
-                                 ntransient=None, update=True,type_=None,
+    def set_transient_parameters(self,ratekind="basic", ratefunc=None,
+                                 ntransient=None, update=True, type_=None,
                                  **kwargs):
         """
         This method will define the transient properties.
@@ -166,15 +200,18 @@ class TransientGenerator( BaseObject ):
         if self._properties["transient_coverage"] is None:
             self._properties["transient_coverage"] = {}
 
-        # -- if this works, you are good to go
-        f = RateGenerator().get_ratefunc(transient=type_,ratekind=ratekind,
-                                         ratefunc=ratefunc)
-
         # - you are good to fill it
-        self._properties["transient_coverage"]["transienttype"] = type_
-        self._properties["transient_coverage"]["ratekind"] = ratekind
+        if type_ is not None:
+            self._properties["transient_coverage"]["transienttype"] = type_
+        if ratekind is not None:
+            self._properties["transient_coverage"]["ratekind"] = ratekind
         if ntransient is not None:
             self._properties["transient_coverage"]["ntransient"] = ntransient
+
+        # -- if this works, you are good to go
+        f = RateGenerator().get_ratefunc(transient=self.transienttype,
+                                         ratekind=self.ratekind,
+                                         ratefunc=ratefunc)
 
         self._side_properties["ratefunction"] = f
 
@@ -718,6 +755,20 @@ class TransientGenerator( BaseObject ):
         """
         self._properties['err_mwebv'] = err
 
+    @property
+    def transienttype(self):
+        """
+        """
+        return self._properties["transient_coverage"]["transienttype"]
+
+    @property
+    def ratekind(self):
+        """
+        """
+        return self._properties["transient_coverage"]["ratekind"]
+
+
+
     # -----------------------
     # - LightCuve Properties
     @property
@@ -922,52 +973,7 @@ class RateGenerator( _PropertyGenerator_ ):
     # ========================== #
     # = Properties             = #
     # ========================== #
-    @property
-    def known_rates(self):
-        return self._parse_rate_("rate")
-    
-    @property
-    def known_Ia_rates(self):
-        return self._parse_rate_("rate_Ia")
-    
-#######################################
-#                                     #
-# Generator: Light Curve              #
-#                                     #
-#######################################
-class LightCurveGenerator( _PropertyGenerator_ ):
-    """
-    """
 
-    # ========================== #
-    # = Method                 = #
-    # ========================== #
-    def get_lightcurve_func(self,transient="Ia",simulation="basic"):
-        """
-        Parameters
-        ----------
-
-        Return
-        ------
-        a lightcurve generator function
-        """
-        # ---------------
-        # - Transients
-        if transient is None or transient == "":
-            avialable_lc = self.known_lightcurve_simulation
-            if len(avialable_lc) == 0:
-                raise NotImplementedError("no lightcurve simulation implemented")
-            
-            transient = None
-            
-        elif transient == "Ia":
-            avialable_lc = self.known_Ia_lightcurve_simulation
-
-        else:
-            raise ValueError("'%s' is not a known transient"%transient)
-    
-        # ---------------
-        # - Rate Kinds
         if simulation not in avialable_lc:
             raise ValueError("not '%s' rate kind for '%s'"%(simulation,transient)+\
                              "These are: "+",".join(avialable_lc))
