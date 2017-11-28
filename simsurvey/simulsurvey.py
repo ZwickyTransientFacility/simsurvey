@@ -33,8 +33,8 @@ class SimulSurvey( BaseObject ):
     """
     __nature__ = "SimulSurvey"
 
-    PROPERTIES         = ["generator", "instruments","plan"]
-    SIDE_PROPERTIES    = ["cadence", "blinded_bias", "phase_range"]
+    PROPERTIES         = ["generator", "instruments", "plan"]
+    SIDE_PROPERTIES    = ["pointings", "blinded_bias", "phase_range"]
     DERIVED_PROPERTIES = ["obs_fields", "obs_ccd",
                           "non_field_obs", "non_field_obs_ccd",
                           "non_field_obs_exist"]
@@ -141,11 +141,10 @@ class SimulSurvey( BaseObject ):
                        (lc['time'] > self.generator.model.maxtime()))
             lc['flux'][outside] = 0.
 
-            if 'field' in obs.colnames:
-                lc = hstack((lc, obs[('field',)]))
-            if 'ccd' in obs.colnames:
-                lc = hstack((lc, obs[('ccd',)]))
-                
+            for col_ in ['field', 'ccd', 'comment']:
+                if col_ in obs.colnames:
+                    lc = hstack((lc, obs[(col_,)]))
+
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
             fluxerr = np.sqrt(obs['skynoise']**2 +
@@ -271,8 +270,8 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Add Stuffs         - #
     # ---------------------- #
-    def add_instrument(self,bandname,gain,zp,zpsys="ab",err_calib=None,
-                       force_it=True,update=True,**kwargs):
+    def add_instrument(self, bandname, gain, zp=30, zpsys="ab", err_calib=None,
+                       force_it=True, update=True, **kwargs):
         """
         kwargs could be any properties you wish to save with the instrument
         """
@@ -283,7 +282,7 @@ class SimulSurvey( BaseObject ):
             raise AttributeError("%s is already defined."+\
                                  " Set force_it to True to overwrite it. ")
 
-        instprop = {"gain":gain,"zp":zp,"zpsys":zpsys,"err_calib":err_calib}
+        instprop = {"gain":gain, "zp":zp, "zpsys":zpsys, "err_calib":err_calib}
         self.instruments[bandname] = kwargs_update(instprop,**kwargs)
 
         if update:
@@ -323,7 +322,7 @@ class SimulSurvey( BaseObject ):
 
         # -----------------------
         # - Check if instruments exists
-        all_instruments = np.unique(self.cadence["band"])
+        all_instruments = np.unique(self.pointings["band"])
         if not np.all([i in self.instruments.keys() for i in all_instruments]):
             raise ValueError("Some of the instrument in cadence have not been defined."+"\n"+
                              "given instruments :"+", ".join(all_instruments.tolist())+"\n"+
@@ -351,7 +350,8 @@ class SimulSurvey( BaseObject ):
 
             
             data = [[self.instruments[b]["gain"] for b in obs["band"]],
-                    [self.instruments[b]["zp"] for b in obs["band"]],
+                    [(zp if not np.isnan(zp) else self.instruments[b]["zp"])
+                     for zp, b in zip(ops["zp"], obs["band"])],
                     [self.instruments[b]["zpsys"] for b in obs["band"]]]
             names = ["gain", "zp", "zpsys"]
             
@@ -417,7 +417,7 @@ class SimulSurvey( BaseObject ):
         return self._properties["plan"]
 
     def is_set(self):
-        """This parameter is True if this has cadence, instruments and genetor set"""
+        """This parameter is True if this has plan, instruments and genetor set"""
         return not (self.instruments is None or \
                     self.generator is None or \
                     self.plan is None)
@@ -425,10 +425,19 @@ class SimulSurvey( BaseObject ):
     # ------------------
     # - Side properties
     @property
-    def cadence(self):
+    def pointings(self):
         """This is a table containing where the telescope is pointed with which band."""
         if self._properties["plan"] is not None:
-            return self._properties["plan"].cadence
+            return self._properties["plan"].pointings
+        else:
+            raise ValueError("Property 'plan' not set yet")
+
+    @property
+    def cadence(self):
+        """This is a table containing where the telescope is pointed with which band."""
+        warnings.warn("cadence has been renamed pointings", DeprecationWarning)
+        if self._properties["plan"] is not None:
+            return self._properties["plan"].pointings
         else:
             raise ValueError("Property 'plan' not set yet")
 
@@ -511,13 +520,13 @@ class SurveyPlan( BaseObject ):
     """
     __nature__ = "SurveyPlan"
 
-    PROPERTIES         = ["cadence", "width", "height"]
+    PROPERTIES         = ["pointings", "width", "height"]
     SIDE_PROPERTIES    = ["fields", "ccds"]
     DERIVED_PROPERTIES = []
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, width=7.295, height=7.465, fields=None, empty=False,
-                 load_opsim=None, **kwargs):
+                 obs_field=None, zp=None, comment=None, width=7.295, height=7.465,
+                 fields=None, empty=False, load_opsim=None, **kwargs):
         """
         Parameters:
         ----------
@@ -529,11 +538,13 @@ class SurveyPlan( BaseObject ):
             return
 
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field, width=width, height=height, fields=fields,
+                    obs_field=obs_field, zp=zp, comment=comment,
+                    width=width, height=height, fields=fields,
                     load_opsim=load_opsim, **kwargs)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-               obs_field=None, width=7.295, height=7.465, fields=None, 
+               obs_field=None, zp=None, comment=None,
+               width=7.295, height=7.465, fields=None,
                load_opsim=None, **kwargs):
         """
         """        
@@ -546,7 +557,7 @@ class SurveyPlan( BaseObject ):
 
         if load_opsim is None:
             self.add_observation(time, band, skynoise, ra=ra, dec=dec,
-                                 field=obs_field)
+                                 zp=zp, comment=comment, field=obs_field)
         else:
             self.load_opsim(load_opsim, **kwargs)
 
@@ -570,11 +581,13 @@ class SurveyPlan( BaseObject ):
         self._side_properties["fields"] = SurveyFieldBins(ra, dec, ccds=self.ccds,
                                                           **kwargs)
 
-        if self.cadence is not None and np.any(np.isnan(self.cadence['field'])):
-            warnings.warning("cadence was already set, field pointing will be updated")
-            self._update_field_radec()
+        # This appears not to do anything, there is no methof _update_field_radec
+        # if self.cadence is not None and np.any(np.isnan(self.cadence['field'])):
+        #     warnings.warning("pointings were already set and will be updated")
+        #     self._update_field_radec()
 
-    def add_observation(self, time, band, skynoise, ra=None, dec=None, field=None):
+    def add_observation(self, time, band, skynoise, ra=None, dec=None, field=None,
+                        zp=None, comment=None):
         """
         """
         if ra is None and dec is None and field is None:
@@ -589,13 +602,19 @@ class SurveyPlan( BaseObject ):
         elif field is None:
             field = np.array([np.nan for r in ra])
 
-        new_obs = Table(data=[time, band, skynoise, ra, dec, field],
-                        names=['time', 'band', 'skynoise', 'RA', 'Dec', 'field'])
+        if zp is None:
+            zp = np.array([np.nan for r in ra])
+        if comment is None:
+            comment = np.array(['' for r in ra])
 
-        if self._properties['cadence'] is None:
-            self._properties['cadence'] = new_obs
+        new_obs = Table(data=[time, band, zp, skynoise, ra, dec, field, comment],
+                        names=['time', 'band', 'zp', 'skynoise',
+                               'RA', 'Dec', 'field', 'comment'])
+
+        if self._properties['pointings'] is None:
+            self._properties['pointings'] = new_obs
         else:
-            self._properties['cadence'] = vstack((self._properties['cadence'], 
+            self._properties['pointings'] = vstack((self._properties['pointings'], 
                                                   new_obs))
 
     # ---------------------- #
@@ -671,7 +690,7 @@ class SurveyPlan( BaseObject ):
         """
         """
         if (self.fields is not None and 
-            not np.all(np.isnan(self.cadence["field"]))):
+            not np.all(np.isnan(self.pointings["field"]))):
             tmp = self.fields.coord2field(ra, dec, field_id=field_id,
                                           progress_bar=progress_bar, 
                                           notebook=notebook)
@@ -683,7 +702,7 @@ class SurveyPlan( BaseObject ):
         """
         """
         observed = False
-        gen = self.cadence[np.isnan(self.cadence["field"])]
+        gen = self.pointings[np.isnan(self.pointings["field"])]
 
         if progress_bar and len(gen) > 0:
             try:
@@ -737,27 +756,32 @@ class SurveyPlan( BaseObject ):
         if fields is None and non_field is None:
             raise ValueError("Provide arrays of fields and/or other pointings")
 
-        out = {'time': [], 'band': [], 'skynoise': [], 'field': []}
+        out = {'time': [], 'band': [], 'skynoise': [], 'field': [],
+               'zp': [], 'comment': []}
 
         if ccds is not None:
             out['ccd'] = []
 
         if fields is not None:
             for k, l in enumerate(fields):
-                mask = (self.cadence['field'] == l)
-                out['time'].extend(self.cadence['time'][mask].quantity.value)
-                out['band'].extend(self.cadence['band'][mask])
-                out['skynoise'].extend(self.cadence['skynoise']
+                mask = (self.pointings['field'] == l)
+                out['time'].extend(self.pointings['time'][mask].quantity.value)
+                out['band'].extend(self.pointings['band'][mask])
+                out['zp'].extend(self.pointings['zp'][mask])
+                out['comment'].extend(self.pointings['comment'][mask])
+                out['skynoise'].extend(self.pointings['skynoise']
                                        [mask].quantity.value)
                 out['field'].extend(l*np.ones(np.sum(mask), dtype=int))
                 if 'ccd' in out.keys():
                     out['ccd'].extend(ccds[k]*np.ones(np.sum(mask), dtype=int))
 
         if non_field is not None:
-            mask = np.isnan(self.cadence["field"])
-            out['time'].extend(self.cadence['time'][mask][non_field].quantity.value)
-            out['band'].extend(self.cadence['band'][mask][non_field])
-            out['skynoise'].extend(self.cadence['skynoise']
+            mask = np.isnan(self.pointings["field"])
+            out['time'].extend(self.pointings['time'][mask][non_field].quantity.value)
+            out['band'].extend(self.pointings['band'][mask][non_field])
+            out['zp'].extend(self.pointings['zp'][mask][non_field])
+            out['comment'].extend(self.pointings['comment'][mask][non_field])
+            out['skynoise'].extend(self.pointings['skynoise']
                                    [mask][non_field].quantity.value)
             out['field'].extend(np.nan*np.ones(np.sum(mask), dtype=int))
             if 'ccd' in out.keys():
@@ -776,9 +800,15 @@ class SurveyPlan( BaseObject ):
     # = Properties and Settings = #
     # =========================== #
     @property
+    def pointings(self):
+        """Table of observations"""
+        return self._properties["pointings"]
+
+    @property
     def cadence(self):
         """Table of observations"""
-        return self._properties["cadence"]
+        warnings.warn("cadence has been renamed pointings", DeprecationWarning)
+        return self._properties["pointings"]
 
     @property
     def width(self):
