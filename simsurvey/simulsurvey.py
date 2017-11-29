@@ -850,10 +850,10 @@ class LightcurveCollection( BaseObject ):
     __nature__ = "LightcurveCollection"
 
     PROPERTIES         = ['lcs','meta']
-    SIDE_PROPERTIES    = []
-    DERIVED_PROPERTIES = []
+    SIDE_PROPERTIES    = ['threshold', 'n_samenight', 'p_bins']
+    DERIVED_PROPERTIES = ['stats']
 
-    def __init__(self, lcs=None, empty=False, load=None):
+    def __init__(self, empty=False, **kwargs):
         """
         Parameters:
         ----------
@@ -864,11 +864,17 @@ class LightcurveCollection( BaseObject ):
         if empty:
             return
 
-        self.create(lcs=lcs, load=load)
+        self.create(**kwargs)
 
-    def create(self, lcs=None, load=None):
+    def create(self, lcs=None, threshold=5., n_samenight=2,
+               p_bins=np.arange(-30, 71, 5), load=None):
         """
         """
+        self.set_threshold(threshold)
+        self.set_n_samenight(n_samenight)
+        self.set_p_bins(p_bins)
+        self._prep_stats_()
+
         if load is None:
             self.add(lcs)
         else:
@@ -885,8 +891,9 @@ class LightcurveCollection( BaseObject ):
         else:
             meta = lcs.meta
 
-        self._add_lcs_(lcs)
-        self._add_meta_(meta)    
+
+        mask = self._add_lcs_(lcs)
+        self._add_meta_(meta, mask=mask)    
 
     def load(self, filename):
         """
@@ -929,17 +936,23 @@ class LightcurveCollection( BaseObject ):
             self._properties['lcs'] = []
 
         if type(lcs) is list:
+            mask = []
             for lc in lcs:
-                self._add_lc_(lc)
+                mask.append(self._add_lc_(lc))
         else:
-            self._add_lc_(lcs)
+            mask = self._add_lc_(lcs)
+
+        return mask
 
     def _add_lc_(self, lc):
         """
         """
-        self._properties['lcs'].append(lc.as_array())
-            
-    def _add_meta_(self, meta):
+        mask = self._add_lc_stats_(lc)
+        if mask:
+            self._properties['lcs'].append(lc.as_array())
+        return mask
+
+    def _add_meta_(self, meta, mask):
         """
         """
         if type(meta) is list:
@@ -948,23 +961,25 @@ class LightcurveCollection( BaseObject ):
                 dtypes = [type(v) for v in meta[0].values()]
                 self._create_meta_(keys, dtypes)
                 
-            for meta_ in meta:
+            for (meta_, mask_) in zip(meta, mask):
+                if mask_:
+                    for k in self.meta.dtype.names:
+                        self._properties['meta'][k] = np.append(
+                            self._properties['meta'][k],
+                            meta_[k]
+                        )
+        else:
+            if mask:
+                if self.meta is None:
+                    keys = [k for k in meta.keys()]
+                    dtypes = [type(v) for v in meta.values()]
+                    self._create_meta_(keys, dtypes)
+
                 for k in self.meta.dtype.names:
                     self._properties['meta'][k] = np.append(
                         self._properties['meta'][k],
-                        meta_[k]
-                    )
-        else:
-            if self.meta is None:
-                keys = [k for k in meta.keys()]
-                dtypes = [type(v) for v in meta.values()]
-                self._create_meta_(keys, dtypes)
-                
-            for k in self.meta.dtype.names:
-                self._properties['meta'][k] = np.append(
-                    self._properties['meta'][k],
-                    meta[k]
-                )            
+                        meta[k]
+                    )            
 
     def _create_meta_(self, keys, dtypes):
         """
@@ -973,7 +988,119 @@ class LightcurveCollection( BaseObject ):
         self._properties['meta'] = odict()
         for k, t in zip(keys, dtypes):
             self._properties['meta'][k] = np.array([], dtype=t)
+
+    def _prep_stats_(self):
+        """
+        """
+        self._derived_properties['stats'] = {
+            'p_det': np.array([]), 
+            'p_last': np.array([]), 
+            'dt_det': np.array([]), 
+            'p_binned': {'all': None},
+            'mag_max': {}
+        }
+
+    def _add_lc_stats_(lc):
+        """
+        """
+        p0, p1, dt = get_p_det_last(lc, thr=self.threshold,
+                                           n_samenight=self.n_samenight)
+        if p0 < 1e11 and p1 > -1e11:
+            self._derived_properties['stats']['p_det'] = np.append(
+                self._derived_properties['stats']['p_det'], p0
+            )
+            self._derived_properties['stats']['p_last'] = np.append(
+                self._derived_properties['stats']['p_last'], p1
+            )
+            self._derived_properties['stats']['dt_det'] = np.append(
+                self._derived_properties['stats']['dt_det'], dt
+            )
+
+            self._add_p_binned_(lc)
+            self._add_mag_max_(lc)
+        else:
+            return False
+
+    def _add_p_binned_(self, lc):
+        """
+        """
+        new = np.array([np.histogram(lc['time'] - lc.meta['t0'],
+                                     bins=self.p_bins)[0]])
+        if self.stats['p_binned']['all'] is not None:
+            new = np.concatenate(
+                (self._derived_properties['stats']['p_binned']['all'], new),
+                axis=0
+            )    
+        self._derived_properties['stats']['p_binned']['all'] = new
+
+        for b_ in np.unique(lc["band"]):
+            lc_b = lc[lc["band"] == b_]
+            new = np.array([np.histogram(lc_b['time'] - lc_b.meta['t0'],
+                                         bins=self.p_bins)[0]])
+            if b_ not in self.stats['p_binned'].keys():
+                if len(self.stats['p_det']) == 1:
+                    self._derived_properties['stats']['p_binned'][b_] = new
+                else:
+                    tmp = np.zeros(self.stats['p_binned']['all'].shape)
+                    tmp[-1] = new
+                    self._derived_properties['stats']['p_binned'][b_] = tmp
+            else:
+                new = np.concatenate(
+                    (self._derived_properties['stats']['p_binned'][b_], new),
+                    axis=0
+                )
+                self._derived_properties['stats']['p_binned'][b_] = new
+
+        missing = [b_ for b_ in self.stats['p_binned'].keys()
+                   if b_ not in np.unique(lc["band"])]
+        for b_ in missing:
+            new = np.zeros(len(self.p_bins)-1)
+            new = np.concatenate(
+                (self._derived_properties['stats']['p_binned'][b_], new),
+                axis=0
+            )
+            self._derived_properties['stats']['p_binned'][b_] = new
+
+    def _add_mag_max_(self, lc):
+        """
+        """
+        for b_ in np.unique(lc["band"]):
+            mag_max = get_lc_max(lc, b_)
+            if b_ not in self.stats['mag_max'].keys():
+                new = 99. * np.ones(len(self.stats['p_det']))
+                new[-1] = mag_max
+                self._derived_properties['stats']['mag_max'][b_] = new
+            else:
+                new = np.append(
+                    self._derived_properties['stats']['mag_max'][b_], mag_max
+                )
+                self._derived_properties['stats']['mag_max'][b_] = new
+
+        missing = [b_ for b_ in self.stats['p_binned'].keys()
+                   if b_ not in np.unique(lc["band"])]
+        for b_ in missing:
+            new = np.append(
+                self._derived_properties['stats']['mag_max'][b_], 99.
+            )
+            self._derived_properties['stats']['mag_max'][b_] = new
+
+    def collect_stats(lc, p_bins=np.arange(-30, 71, 5)):
+        """
+        """
+    for l, lc in enumerate(lcs):
+        for k, b in bands.items():
+            for key, fct in fcts.items():
+                out[key][k] = np.append(out[key][k], fct(lc, band=b))
+                        
+            if out['p_binned'][k] is None:
+                out['p_binned'][k] = bin_p(lc, out['p_binned']['bins'], band=b)
+            else:
+                out['p_binned'][k] = np.concatenate((out['p_binned'][k],
+                                                     bin_p(lc, out['p_binned']['bins'], band=b)), 
+                                                    axis=0)
                 
+    return out
+
     # =========================== #
     # = Properties and Settings = #
     # =========================== #
@@ -989,4 +1116,78 @@ class LightcurveCollection( BaseObject ):
             return None
         return dict_to_array(self._properties["meta"])
 
-    
+    @property
+    def threshold(self):
+        """"""
+        return self._side_properties["threshold"]
+
+    def set_threshold(self, threshold):
+        """
+        """
+        self._side_properties["threshold"] = threshold
+
+    @property
+    def n_samenight(self):
+        """"""
+        return self._side_properties["n_samenight"]
+
+    def set_n_samenight(self, n_samenight):
+        """
+        """
+        self._side_properties["n_samenight"] = n_samenight
+
+    @property
+    def p_bins(self):
+        """"""
+        return self._side_properties["p_bins"]
+
+    def set_p_bins(self, p_bins):
+        """
+        """
+        self._side_properties["p_bins"] = p_bins
+
+    @property
+    def stats(self):
+        """"""
+        return self._derived_properties["stats"]
+
+# ========================= #
+# = Lightcurve statistics = #
+# ========================= #
+def get_p_det_last(lc, thr=5., n_samenight=2):
+    mask_det = lc['flux']/lc['fluxerr'] > thr
+    lc_nights = np.unique([int(t_) for t_ in lc['time']])
+    idx_nights = [np.array([k for k in xrange(len(lc)) 
+                            if int(lc['time'][k]) == t_]) 
+                  for t_ in lc_nights]
+        
+    if np.sum(mask_det) > 1:
+        mult_det = [k_ for k_, idx_ in enumerate(idx_nights)
+                    if np.sum(mask_det[idx_]) >= n_samenight]
+        if len(mult_det) > 0:
+            k__ = idx_nights[mult_det[0]][mask_det[idx_nights[mult_det[0]]]]
+            p0 = lc['time'][k__][1] - lc.meta['t0']
+            if k__[0] > 0:
+                dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
+            else:
+                dt = 1001.
+        else:
+            p0 = 1000.
+            dt = 1000.
+            
+        p1 = lc['time'].max() - lc.meta['t0']
+    else:
+        p0 = 1e12.
+        dt = 1e12.
+        p1 = -1e12
+        
+    return p0, p1, dt
+
+def get_lc_max(lc, band):
+     lc_b = lc['flux'][lc['band'] == band]
+     if len(lc_b) > 0:
+         max_flux = np.max(lc_b)
+         zp = lc_b['zp'][lc_b == max_flux]
+         return -2.5 * np.log10(max_flux) + zp
+     else:
+         return 99.
