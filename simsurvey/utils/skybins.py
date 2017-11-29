@@ -906,9 +906,9 @@ class SurveyField( BaseObject ):
             center_ = np.array([np.mean(c_[:,k]) for k in range(2)])
             tmp = np.zeros((4,2))
             for c__ in c_:
-                if (c_[0] - center_[0]) > 0:
+                if (c__[0] - center_[0]) > 0:
                     # Right
-                    if (c_[1] - center_[1]) > 0:
+                    if (c__[1] - center_[1]) > 0:
                         # Top
                         tmp[2] = c__
                     else:
@@ -916,7 +916,7 @@ class SurveyField( BaseObject ):
                         tmp[3] = c__
                 else:
                     # Left
-                    if (c_[1] - center_[1]) > 0:
+                    if (c__[1] - center_[1]) > 0:
                         # Top
                         tmp[1] = c__
                     else:

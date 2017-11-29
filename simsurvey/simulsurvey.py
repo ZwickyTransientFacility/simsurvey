@@ -350,12 +350,18 @@ class SimulSurvey( BaseObject ):
                                          else None),
                                         (mjd_range[0][k], mjd_range[1][k]))
 
-            
             data = [[self.instruments[b]["gain"] for b in obs["band"]],
-                    [(zp if not np.isnan(zp) else self.instruments[b]["zp"])
-                     for zp, b in zip(ops["zp"], obs["band"])],
                     [self.instruments[b]["zpsys"] for b in obs["band"]]]
-            names = ["gain", "zp", "zpsys"]
+            names = ["gain", "zpsys"]
+
+            if 'zp' in obs.keys():
+                mask = np.isnan(obs['zp'])
+                obs['zp'][mask] =  [self.instruments[b]["zp"]
+                                    for b in obs[mask]["band"]]
+            else:
+                data.append([self.instruments[b]["zp"]
+                             for b in obs["band"]])
+                name.append("zp")
             
             if len(obs) > 0:
                 yield hstack((obs,Table(data=data, names=names)))
@@ -853,7 +859,9 @@ class LightcurveCollection( BaseObject ):
     SIDE_PROPERTIES    = ['threshold', 'n_samenight', 'p_bins']
     DERIVED_PROPERTIES = ['stats']
 
-    def __init__(self, empty=False, **kwargs):
+    def __init__(self,  threshold=5., n_samenight=2,
+                 p_bins=np.arange(-30, 71, 5), empty=False,
+                 **kwargs):
         """
         Parameters:
         ----------
@@ -861,20 +869,19 @@ class LightcurveCollection( BaseObject ):
 
         """
         self.__build__()
-        if empty:
-            return
-
-        self.create(**kwargs)
-
-    def create(self, lcs=None, threshold=5., n_samenight=2,
-               p_bins=np.arange(-30, 71, 5), load=None):
-        """
-        """
         self.set_threshold(threshold)
         self.set_n_samenight(n_samenight)
         self.set_p_bins(p_bins)
         self._prep_stats_()
 
+        if empty:
+            return
+
+        self.create(**kwargs)
+
+    def create(self, lcs=None, load=None):
+        """
+        """
         if load is None:
             self.add(lcs)
         else:
@@ -1000,11 +1007,11 @@ class LightcurveCollection( BaseObject ):
             'mag_max': {}
         }
 
-    def _add_lc_stats_(lc):
+    def _add_lc_stats_(self, lc):
         """
         """
         p0, p1, dt = get_p_det_last(lc, thr=self.threshold,
-                                           n_samenight=self.n_samenight)
+                                    n_samenight=self.n_samenight)
         if p0 < 1e11 and p1 > -1e11:
             self._derived_properties['stats']['p_det'] = np.append(
                 self._derived_properties['stats']['p_det'], p0
@@ -1018,6 +1025,7 @@ class LightcurveCollection( BaseObject ):
 
             self._add_p_binned_(lc)
             self._add_mag_max_(lc)
+            return True
         else:
             return False
 
@@ -1052,9 +1060,9 @@ class LightcurveCollection( BaseObject ):
                 self._derived_properties['stats']['p_binned'][b_] = new
 
         missing = [b_ for b_ in self.stats['p_binned'].keys()
-                   if b_ not in np.unique(lc["band"])]
+                   if b_ not in np.unique(lc["band"]) and b_ != 'all']
         for b_ in missing:
-            new = np.zeros(len(self.p_bins)-1)
+            new = np.zeros((1, len(self.p_bins)-1))
             new = np.concatenate(
                 (self._derived_properties['stats']['p_binned'][b_], new),
                 axis=0
@@ -1076,30 +1084,13 @@ class LightcurveCollection( BaseObject ):
                 )
                 self._derived_properties['stats']['mag_max'][b_] = new
 
-        missing = [b_ for b_ in self.stats['p_binned'].keys()
+        missing = [b_ for b_ in self.stats['mag_max'].keys()
                    if b_ not in np.unique(lc["band"])]
         for b_ in missing:
             new = np.append(
                 self._derived_properties['stats']['mag_max'][b_], 99.
             )
             self._derived_properties['stats']['mag_max'][b_] = new
-
-    def collect_stats(lc, p_bins=np.arange(-30, 71, 5)):
-        """
-        """
-    for l, lc in enumerate(lcs):
-        for k, b in bands.items():
-            for key, fct in fcts.items():
-                out[key][k] = np.append(out[key][k], fct(lc, band=b))
-                        
-            if out['p_binned'][k] is None:
-                out['p_binned'][k] = bin_p(lc, out['p_binned']['bins'], band=b)
-            else:
-                out['p_binned'][k] = np.concatenate((out['p_binned'][k],
-                                                     bin_p(lc, out['p_binned']['bins'], band=b)), 
-                                                    axis=0)
-                
-    return out
 
     # =========================== #
     # = Properties and Settings = #
@@ -1170,24 +1161,24 @@ def get_p_det_last(lc, thr=5., n_samenight=2):
             if k__[0] > 0:
                 dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
             else:
-                dt = 1001.
+                dt = 1e12
         else:
-            p0 = 1000.
-            dt = 1000.
+            p0 = 1e12
+            dt = 1e12
             
         p1 = lc['time'].max() - lc.meta['t0']
     else:
-        p0 = 1e12.
-        dt = 1e12.
+        p0 = 1e12
+        dt = 1e12
         p1 = -1e12
         
     return p0, p1, dt
 
 def get_lc_max(lc, band):
-     lc_b = lc['flux'][lc['band'] == band]
+     lc_b = lc[lc['band'] == band]
      if len(lc_b) > 0:
-         max_flux = np.max(lc_b)
-         zp = lc_b['zp'][lc_b == max_flux]
+         max_flux = np.max(lc_b['flux'])
+         zp = lc_b['zp'][lc_b['flux'] == max_flux]
          return -2.5 * np.log10(max_flux) + zp
      else:
          return 99.

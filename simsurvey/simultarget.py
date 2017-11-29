@@ -10,7 +10,7 @@ import sncosmo
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from scipy.stats import truncnorm
-from astropy.cosmology import FlatLambdaCDM, Planck15
+from astropy.cosmology import Planck15
 
 from propobject import BaseObject
 
@@ -252,7 +252,7 @@ class TransientGenerator( BaseObject ):
             "param_func_kwargs": lcsimul_prop
         }
 
-        if model is None:
+        if lcmodel is None:
             self.set_model(
                 LightCurveGenerator().get_model(
                     transient=self.transienttype,
@@ -1257,7 +1257,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def lightcurve_generic_ExpandingBlackBody_basic(redshifts, model,
                                                     sig_mag=0.1,
                                                     r_v=2., ebv_rate=0.11,
-                                                    cosmo=PlancK15,
+                                                    cosmo=Planck15,
                                                     **kwargs):
         """
         """

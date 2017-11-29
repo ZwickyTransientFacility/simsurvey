@@ -21,6 +21,7 @@ try:
     _has_setuptools = True
 except ImportError:
     from distutils.core import setup
+    _has_setuptools = False
 
 if __name__ == "__main__":
     if _has_setuptools:
