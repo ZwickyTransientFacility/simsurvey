@@ -9,9 +9,12 @@ from numpy.random import uniform, normal
 import sncosmo
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
+from scipy.stats import truncnorm
 from astropy.cosmology import FlatLambdaCDM, Planck15
 
 from propobject import BaseObject
+
+from models import ExpandingBlackBodySource#, SpectralIndexSource, MultiSource
 
 from utils       import random
 from utils.tools import kwargs_extract, kwargs_update, range_args
@@ -24,15 +27,15 @@ __all__ = ["get_sn_generator", "get_transient_generator",
 
 def get_sn_generator(zrange,ratekind="basic",**kwargs):
     """
-    This function enables to load the generator of Type Ia supernovae
+    This function enables to load the generator of supernovae
     """
     return SNIaGenerator(ratekind=ratekind,zrange=zrange,
                          **kwargs)
 
 def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
-                        ra_range=[0,360], dec_range=[-90,90],
-                        ntransient=None,
-                        **kwargs):
+                            ra_range=[0,360], dec_range=[-90,90],
+                            ntransient=None,
+                            **kwargs):
     """
     This model returns the object that enables to create and change
     the kind of transient you wish to set in the sky.
@@ -85,28 +88,20 @@ class TransientGenerator( BaseObject ):
     DERIVED_PROPERTIES = ["simul_parameters", "mwebv", "mwebv_sfd98", 
                           "has_mwebv_sfd98", "lightcurve_parameters"]
 
-    def __init__(self,zrange=[0.0,0.2], ratekind="basic", ratefunc=None,
-                 load=False, mjd_range=[57754.0,58849.0],
-                 ra_range=(0,360),dec_range=(-90,90), 
-                 ntransient=None,empty=False,sfd98_dir=None,**kwargs):
+    def __init__(self, empty=False, **kwargs):
         """
         """
         self.__build__()
         if empty:
             return
 
-        self.create(zrange,
-                    ratekind=ratekind, ratefunc=ratefunc, 
-                    ntransient=ntransient, load=load,
-                    ra_range=ra_range, dec_range=dec_range,
-                    mjd_range=mjd_range, sfd98_dir=sfd98_dir,
-                    **kwargs)
+        self.create(**kwargs)
 
-    def create(self,zrange,ratekind="basic",ratefunc=None,
-               ntransient=None,type_=None,load=False,
-               mjd_range=[57754.0,58849.0],
-               ra_range=(0,360),dec_range=(-90,90),
-               mw_exclusion=0,sfd98_dir=None,transientprop={},err_mwebv=0.01):
+    def create(self, zrange=(0.0, 0.2), ratekind="basic", ratefunc=None,
+               ntransient=None, type_=None, template=None, load=False,
+               mjd_range=(57754.0,58849.0),
+               ra_range=(0,360), dec_range=(-90,90),
+               mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01):
         """
         """
         # == Add the Input Test == #
@@ -116,27 +111,30 @@ class TransientGenerator( BaseObject ):
         # * Create      * #
         # *************** #
         # -- This will be directly used as random.radec inputs
+        if transientprop is None:
+            transientprop = {}
+
         self.set_sfd98_dir(sfd98_dir)
 
         if not load:
             self.set_event_parameters(update=False,
-                                      **{"ra_range":ra_range,"dec_range":dec_range,
-                                         "zcmb_range":zrange,"mjd_range":mjd_range,
+                                      **{"ra_range":ra_range, "dec_range":dec_range,
+                                         "zcmb_range":zrange, "mjd_range":mjd_range,
                                          "mw_exclusion":mw_exclusion})
 
-            self.set_transient_parameters(ratekind=ratekind,ratefunc=ratefunc,
-                                          type_=type_, ntransient=ntransient,
-                                          update=False,**transientprop)
+            self.set_transient_parameters(ratekind=ratekind, ratefunc=ratefunc,
+                                          type_=type_, template=template,
+                                          ntransient=ntransient,
+                                          update=False, **transientprop)
 
             self.set_err_mwebv(err_mwebv)
             self._update_()
         else:
             self.load(load)
-            self.set_transient_parameters(ratekind=None,ratefunc=ratefunc,
-                                          type_=None, ntransient=None,
-                                          update=False,**transientprop)
-
-
+            self.set_transient_parameters(ratekind=None, ratefunc=ratefunc,
+                                          type_=None, template=template,
+                                          ntransient=None,
+                                          update=False, **transientprop)
     # =========================== #
     # = Main Methods            = #
     # =========================== #
@@ -193,7 +191,7 @@ class TransientGenerator( BaseObject ):
 
     def set_transient_parameters(self,ratekind="basic", ratefunc=None,
                                  ntransient=None, update=True, type_=None,
-                                 **kwargs):
+                                 template=None, **kwargs):
         """
         This method will define the transient properties.
         """
@@ -203,6 +201,8 @@ class TransientGenerator( BaseObject ):
         # - you are good to fill it
         if type_ is not None:
             self._properties["transient_coverage"]["transienttype"] = type_
+        if template is not None:
+            self._properties["transient_coverage"]["template"] = template
         if ratekind is not None:
             self._properties["transient_coverage"]["ratekind"] = ratekind
         if ntransient is not None:
@@ -215,43 +215,53 @@ class TransientGenerator( BaseObject ):
 
         self._side_properties["ratefunction"] = f
 
-        if "lcmodel" in kwargs.keys():
-            self.set_model(kwargs["lcmodel"])
-            self.set_lightcurve_prop(model=self.model,**kwargs)
-        elif "lcsource" in kwargs.keys():
-            self.set_lightcurve_prop(source=kwargs["lcsource"],**kwargs)
+        self.set_lightcurve_prop(**kwargs)
+
+        # if "lcmodel" in kwargs.keys():
+        #     self.set_model(kwargs["lcmodel"])
+        #     self.set_lightcurve_prop(model=self.model,**kwargs)
+        # elif "lcsource" in kwargs.keys():
+        #     self.set_lightcurve_prop(source=kwargs["lcsource"],**kwargs)
+        # else:
+        #     self.set_lightcurve_prop(source=kwargs["lcsource"],**kwargs)
 
         if update:
             self._update_()
 
-    def set_lightcurve_prop(self,source=None, model=None, lcsimul_func=None,
-                            lcsimul_prop={}, **kwargs):
+    def set_lightcurve_prop(self, lcmodel=None, lcmodel_prop=None,
+                            lcsimul_func='basic', lcsimul_prop=None, **kwargs):
         """
         lcsimul_func must be function with redshift and sncosmo.model as arguments
         lcsimul_prop can be used for options of lcsimul_func
         """
-        if lcsimul_func is None:
-            raise ValueError("please set lcsimul_func")
+        if lcmodel_prop is None:
+            lcmodel_prop = {}
+        if lcsimul_prop is None:
+            lcsimul_prop = {}
+
+        # TODO: Try to obtain lcsimul_func first
+        if type(lcsimul_func) is str:
+            lcsimul_func = LightCurveGenerator().get_lightcurve_func(
+                transient=self.transienttype,
+                template=self.template,
+                simulation=lcsimul_func
+            )
 
         props = {
             "param_func": lcsimul_func,
             "param_func_kwargs": lcsimul_prop
         }
 
-        if model is not None:
-            props["source"] = None
-            props["model"] = model
-        elif source is not None:
-            accepted = [str, sncosmo.models.SALT2Source,
-                        sncosmo.models.TimeSeriesSource]
-            if source.__class__ not in accepted:
-                raise TypeError("source must be string, " +
-                                "sncosmo.models.TimeSeriesSource or" +
-                                "sncosmo.models.SALT2Source")
-            props["source"] = source
-            props["model"] = None
+        if model is None:
+            self.set_model(
+                LightCurveGenerator().get_model(
+                    transient=self.transienttype,
+                    template=self.template,
+                    **lcmodel_prop
+                )
+            )
         else:
-            raise ValueError("Please provide a model or a source")
+            self.set_model(lcmodel)
 
         self._properties["transient_coverage"]["lightcurve_prop"] = props
 
@@ -552,7 +562,6 @@ class TransientGenerator( BaseObject ):
         """
         return np.random.rand(self.ntransient)*self.timescale + self.mjd_range[0]
 
-    
     # =========================== #
     # = Properties and Settings = #
     # =========================== #
@@ -719,8 +728,6 @@ class TransientGenerator( BaseObject ):
     @property
     def model(self):
         """Light curve model (derived from source if not set)"""
-        if self._side_properties["model"] is None:
-            self.set_model(sncosmo.Model(source=self.lightcurve_source))
         
         return self._side_properties["model"]
 
@@ -737,14 +744,6 @@ class TransientGenerator( BaseObject ):
 
         self._side_properties["model"] = model
 
-    def reset_model(self):
-        """
-        Resets model to None. 
-        Next time self.model is called it will be rederived from 
-        self.lightcurve_source
-        """
-        self._side_properties["model"] = None
-
     @property
     def err_mwebv(self):
         """Assumed error of dustmap; will be applied to lightcurve creation"""
@@ -759,15 +758,28 @@ class TransientGenerator( BaseObject ):
     def transienttype(self):
         """
         """
-        return self._properties["transient_coverage"]["transienttype"]
+        return (self._properties["transient_coverage"]["transienttype"]
+                if "transienttype"
+                in self._properties["transient_coverage"].keys()
+                else None)
 
     @property
     def ratekind(self):
         """
         """
-        return self._properties["transient_coverage"]["ratekind"]
+        return (self._properties["transient_coverage"]["ratekind"]
+                if "ratekind"
+                in self._properties["transient_coverage"].keys()
+                else None)
 
-
+    @property
+    def template(self):
+        """
+        """
+        return (self._properties["transient_coverage"]["template"]
+                if "template"
+                in self._properties["transient_coverage"].keys()
+                else None)
 
     # -----------------------
     # - LightCuve Properties
@@ -791,13 +803,6 @@ class TransientGenerator( BaseObject ):
         """
         """
         return self.transient_coverage["lightcurve_prop"]
-        
-    @property
-    def lightcurve_source(self):
-        if "lightcurve_prop" not in self.transient_coverage:
-            raise AttributeError("no 'lightcurve_prop' defined")
-        return self.lightcurve_properties["source"]
-
     
 #######################################
 #                                     #
@@ -867,9 +872,6 @@ class SNIaGenerator( TransientGenerator ):
         return True if "host" in self.lightcurve_param_names \
           else False
     
-
-    
-    
 #######################################
 #                                     #
 # Generator: SN Rate                  #
@@ -907,7 +909,7 @@ class RateGenerator( _PropertyGenerator_ ):
     #       get_ratefunc(transient="TTT",ratekind="BLA")
     #
 
-    def get_ratefunc(self,transient="Ia",ratekind="basic",ratefunc=None):
+    def get_ratefunc(self, transient="Ia", ratekind="basic", ratefunc=None):
         """
         Parameters
         ----------
@@ -949,6 +951,7 @@ class RateGenerator( _PropertyGenerator_ ):
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
         return 1.e-4
+
     # ----------------- #
     # - Ia rate       - #
     # ----------------- #
@@ -964,57 +967,204 @@ class RateGenerator( _PropertyGenerator_ ):
         """
         """
         return self.rate_basic(z) / 10
+
+    # ----------------- #
+    # - CC rates       - #
+    # ----------------- #
+    def rate_Ibc_basic(self,z):
+        """
+        [TODO: Add source]
+        (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
+        """
+        return 2.25.e-5
+
+    def rate_IIn_basic(self,z):
+        """
+        [TODO: Add source]
+        (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
+        """
+        return 7.5.e-6
+
+    def rate_IIP_basic(self,z):
+        """
+        [TODO: Add source]
+        (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
+        """
+        return 1.2.e-4
+
     # ========================== #
     # = *** Rates              = #
     # ========================== #
-    
 
     
     # ========================== #
     # = Properties             = #
     # ========================== #
 
-        if simulation not in avialable_lc:
-            raise ValueError("not '%s' rate kind for '%s'"%(simulation,transient)+\
-                             "These are: "+",".join(avialable_lc))
-        # -- the output
-        if transient is None:
-            return eval("self.lightcurve_%s"%(simulation))
-        return eval("self.lightcurve_%s_%s"%(transient,simulation))
+
+    @property
+    def known_rates(self):
+        return self._parse_rate_("rate")
     
-    def set_model(self,model):
+    @property
+    def known_Ia_rates(self):
+        return self._parse_rate_("rate_Ia")
+    
+#######################################
+#                                     #
+# Generator: Light Curve              #
+#                                     #
+#######################################
+class LightCurveGenerator( _PropertyGenerator_ ):
+    """
+    """
+
+    # ========================== #
+    # = Method                 = #
+    # ========================== #
+    def get_lightcurve_func(self, transient="Ia", template="hisao", simulation="basic"):
+        """
+        Parameters
+        ----------
+        Return
+        ------
+        a lightcurve generator function
+        """
+        # ---------------
+        # - Transients
+        # if transient is None or transient == "":
+        #     available_lc = self.known_lightcurve_simulations
+        #     if len(avialable_lc) == 0:
+        #         raise NotImplementedError("no lightcurve simulation implemented")
+            
+        #     transient = None            
+        # # elif transient == "Ia":
+        # #     avialable_lc = self.known_Ia_lightcurve_simulation
+        # else:
+        #     raise ValueError("'%s' is not a known transient"%transient)
+
+        name = "%s_%s_%s"%(transient, template, simulation)
+        # ---------------
+        # - Rate Kinds   
+        if name in self.known_lightcurve_simulations:
+            return eval("self.lightcurve_%s"%name)
+        else:
+            raise ValueError("No lightcurve randomizer available for '%s'"%name)
+
+
+    def get_model(self, transient="Ia",  template="hisao", **kwargs):
+        """
+        """
+        name = "%s_%s"%(transient, template)
+        if name in self.available_models:
+            eval("self.model_%s"%name)
+        else:
+            raise ValueError("No lightcurve model available for '%s'"%name)
+
+    def set_model(self, model):
         """
         """
         self._side_properties["model"] = model
-        
-    # ========================== #
-    # = LC Kind                = #
-    # ========================== #
-    
+
+    # ============================ #
+    # = Model definitions        = #
+    # ============================ #
+    # Models to be implemented
+    # - Ibc snana 
+    # - IIn snana 
+    # - IIP snana 
+    # - SpectralIndexSource
+    # - ExpandingBlackBodySource
+
+    def model_Ia_salt2(self):
+        """
+        """
+        return sncosmo.Model(source='salt2')
+
+    def model_Ia_hsiao(self):
+        """
+        """
+        sncosmo.get_source('hsiao', version='3.0')
+        p, w, f = sncosmo.read_griddata_fits(
+            os.path.join(sncosmo.get_cache_dir(),
+                         'models/hsiao/Hsiao_SED_V3.fits')
+        )
+
+        return sncosmo.Model(
+            source=sncosmo.StretchSource(p, w, f, name='hsiao-stretch'),
+            effects=[sncosmo.CCM89Dust()],
+            effect_names=['host'],
+            effect_frames=['rest']
+        )
+
+    def model_Ibc_nugent(self):
+        """
+        """
+        return sncosmo.Model(source='nugent-sn1bc',
+                             effects=[sncosmo.CCM89Dust()],
+                             effect_names=['host'],
+                             effect_frames=['rest'])
+
+    def model_IIn_nugent(self):
+        """
+        """
+        return sncosmo.Model(source='nugent-sn2n',
+                             effects=[sncosmo.CCM89Dust()],
+                             effect_names=['host'],
+                             effect_frames=['rest'])
+
+    def model_IIP_nugent(self):
+        """
+        """
+        return sncosmo.Model(source='nugent-sn2p',
+                             effects=[sncosmo.CCM89Dust()],
+                             effect_names=['host'],
+                             effect_frames=['rest'])
+
+    def model_generic_ExpandingBlackBody(self, **kwargs):
+        """
+        """
+        return sncosmo.Model(source=ExpandingBlackBodySource(**kwargs),
+                             effects=[sncosmo.CCM89Dust()],
+                             effect_names=['host'],
+                             effect_frames=['rest'])
+
+    # ============================ #
+    # = LC Parameter randomizers = #
+    # ============================ #
+
     # ----------------- #
     # - Ia LC         - #
     # ----------------- #
-    def lightcurve_Ia_basic(self,redshifts,model=None,
-                            color_mean=0,color_sigma=0.1,
-                            stretch_mean=0,stretch_sigma=1,
-                            alpha=0.13, beta=3.,
-                            cosmo=Planck15):
-        """
-        """
-        # ----------------
-        # - Models        
-        #self.set_model(sncosmo.Model(source=source))
-        if model is None:
-            self.set_model(sncosmo.Model(source='salt2'))
-        else:
-            self.set_model(model)
 
+    # Functions to be implemented
+    # Separate randomizer:
+    # - Scale to mag (at peak our specific day)
+    # - Scale to distance
+    # Lightcurve parameter randomizers:
+    # - Ia hsiao basic
+    # - Ibc nugent basic
+    # - IIn nugent basic (including mag distro trunction)
+    # - IIP nugent basic
+    # - Ibc snana basic
+    # - IIn snana basic (including mag distro trunction)
+    # - IIP snana basic
+    # - SpectralIndexSource
+    # - ExpandingBlackBodySource
+
+    def lightcurve_Ia_salt2_basic(self, redshifts, model=None,
+                                  color_mean=0, color_sigma=0.1,
+                                  stretch_mean=0, stretch_sigma=1,
+                                  alpha=0.13, beta=3.,
+                                  cosmo=Planck15):
+        """
+        """
         ntransient = len(redshifts)
             
         x1 = normal(stretch_mean, stretch_sigma, ntransient)
         c = normal(color_mean, color_sigma, ntransient)
             
-        x0 = []
+       
         for z, x1_, c_ in zip(redshifts, x1, c):
             self.model.set(z=z, x1=x1_, c=c_)
             mabs = normal(-19.3, 0.1)
@@ -1025,42 +1175,18 @@ class RateGenerator( _PropertyGenerator_ ):
         return {'x0': np.array(x0),
                 'x1': x1,
                 'c': c}
-
-    def lightcurve_Ia_random(self,redshifts,model=None,
-                            color_mean=0,color_sigma=0.1,
-                            stretch_mean=0,stretch_sigma=1,
-                            x0_mean=1e-5,x0_sigma=1.e-5,
-                            #source="salt2",
-                            ):
-        """
-        """
-        # ----------------
-        # - Models        
-        ntransient = len(redshifts)
-        
-        return {'x0':normal(x0_mean, x0_sigma, ntransient),
-                'x1':normal(stretch_mean, stretch_sigma, ntransient),
-                'c':normal(color_mean, color_sigma, ntransient)}
-
     
-    def lightcurve_Ia_realistic(self,redshifts,model=None,
-                                mabs_mean = -19.3, mabs_sigma=0.12,
-                                color_mean=0,color_sigma=0.1,
-                                stretch_mean=(0.5,-1),stretch_sigma=(1,1),
-                                stretch_thr=0.75, alpha=0.13, beta=3,
-                                cosmo=Planck15):
+    def lightcurve_Ia_salt2_realistic(self, redshifts, model=None,
+                                      mabs_mean=-19.3, mabs_sigma=0.12,
+                                      color_mean=0, color_sigma=0.1,
+                                      stretch_mean=(0.5, -1), stretch_sigma=(1, 1),
+                                      stretch_thr=0.75, alpha=0.13, beta=3,
+                                      cosmo=Planck15):
         """
         stretch parameters assume bimodal distribution
         stretch_thr is a threshold for uniformly drawn number used to determine 
         in which mode the SNe is  
         """
-        # ----------------
-        # - Models        
-        #self.set_model(sncosmo.Model(source=source))
-        if model is None:
-            self.set_model(sncosmo.Model(source='salt2'))
-        else:
-            self.set_model(model)
         ntransient = len(redshifts)
 
         c = normal(color_mean, color_sigma, ntransient)
@@ -1087,8 +1213,64 @@ class RateGenerator( _PropertyGenerator_ ):
                 'x1':np.array(x1),
                 'c':np.array(c)}
 
-    
-    def lightcurve_Ia_hostdependent():
+    def lightcurve_Ia_hsiao_basic(redshifts, model,
+                                  mag=(-19.3, 0.1),
+                                  r_v=2., ebv_rate=0.11,
+                                  **kwargs):
+        """
+        """
+        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
+                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+
+    # ----------------- #
+    # - CC LC         - #
+    # ----------------- #
+    def lightcurve_Ibc_nugent_basic(redshifts, model,
+                                    mag=(-17.5, 1.2),
+                                    r_v=2., ebv_rate=0.11,
+                                    **kwargs):
+        """
+        """
+        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
+                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+
+    def lightcurve_IIn_nugent_basic(redshifts, model,
+                                    mag=(-18.5, 1.4),
+                                    mag_dist_trunc=(-1e6, 1),
+                                    r_v=2., ebv_rate=0.11,
+                                    **kwargs):
+        """
+        """
+        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
+                                            mag_dist_trunc=mag_dist_trunc,
+                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+
+    def lightcurve_IIP_nugent_basic(redshifts, model,
+                                    mag=(-16.75, 1.),
+                                    r_v=2., ebv_rate=0.11,
+                                    **kwargs):
+        """
+        """
+        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
+                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+
+    def lightcurve_generic_ExpandingBlackBody_basic(redshifts, model,
+                                                    sig_mag=0.1,
+                                                    r_v=2., ebv_rate=0.11
+                                                    cosmo=PlancK15,
+                                                    **kwargs):
+    """
+    """
+    return {
+        'd': (cosmo.luminosity_distance.value
+              * 10**(-0.4*np.random.normal(0, sig_mag))),
+        'hostr_v': r_v * np.ones(len(redshifts)),
+        'hostebv': np.random.exponential(ebv_rate, len(redshifts))
+    }
+        
+
+
+    def lightcurve_Ia_salt2_hostdependent():
         raise NotImplementedError("To be done")
     # ========================== #
     # = Properties             = #
@@ -1098,12 +1280,16 @@ class RateGenerator( _PropertyGenerator_ ):
         return self._side_properties['model']
     
     @property
-    def known_lightcurve_simulation(self):
+    def known_lightcurve_simulations(self):
         return self._parse_rate_("lightcurve")
     
+    # @property
+    # def known_Ia_lightcurve_simulation(self):
+    #     return self._parse_rate_("lightcurve_Ia")
+
     @property
-    def known_Ia_lightcurve_simulation(self):
-        return self._parse_rate_("lightcurve_Ia")
+    def know_models(self):
+        return self._parse_rate_("model")
     
 
 #######################################
@@ -1111,6 +1297,44 @@ class RateGenerator( _PropertyGenerator_ ):
 # Utilities                           #
 #                                     #
 #######################################
+def lightcurve_scaled_to_mag(redshifts, model,
+                             mag=(-19.3, 0.1),
+                             mag_dist_trunc=None,
+                             r_v=2., ebv_rate=0.11,
+                             t_scale=None, cosmo=Planck15,
+                             **kwargs):
+    """
+    """
+    # Amplitude
+    amp = []
+    for z in redshifts:
+        good = False
+        while not good:
+            if mag_dist_trunc is None:
+                mabs = np.random.normal(mag[0], mag[1])
+            else:
+                mabs = truncnorm.rvs(mag_dist_trunc[0],
+                                     mag_dist_trunc[1],
+                                     mag[0],
+                                     mag[1])
+
+        if t_scale is None:
+            model.set(z=z)
+            model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
+            amp.append(model.get('amplitude'))
+        else:
+            model.set(z=0, amplitude=1)
+            mag_abs = np.random.normal(mag[0], mag[1])
+            mag_current = model.bandmag('sdssr', 'ab', 1)
+            dm = mag_current - mag_abs
+            amp.append(10**(0.4*(dm-cosmo.distmod(z).value)))
+
+    return {
+        'amplitude': np.array(amp),
+        'hostr_v': r_v * np.ones(len(redshifts)),
+        'hostebv': np.random.exponential(ebv_rate, len(redshifts))
+    }
+
 def zdist_fixed_nsim(nsim, zmin, zmax, 
                      ratefunc=lambda z: 1.,
                      cosmo=Planck15):

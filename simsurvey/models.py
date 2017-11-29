@@ -16,7 +16,8 @@ from scipy.interpolate import (InterpolatedUnivariateSpline as Spline1d,
 
 import sncosmo
 
-__all__ = ["BlackBodySource", "MultiSource"]
+__all__ = ["BlackBodySource", "ExpandingBlackBodySource",
+           "MultiSource", "SpectralIndexSource"]
 
 #######################################
 #                                     #
@@ -135,14 +136,149 @@ class MultiSource(sncosmo.Source):
         """template index"""
         return int(self._parameters[2])
 
+class ExpandingBlackBodySource(sncosmo.Source):
+    """
+    """
+    def __init__(self, name=None, version=None, minphase=0.1, maxphase=30.,
+                 tempfunc=(lambda p, x: p[0] * np.exp(p[1]*x)),
+                 radiusfunc=(lambda p, x: p[0] + p[1] * x),
+                 tempparam=[6e4, 1.], radiusparam=[5000, 1000]):
+        self.name = name
+        self.version = version
+        self._minphase = minphase
+        self._maxphase = maxphase
+
+        self._tempfunc = tempfunc
+        self._radiusfunc = radiusfunc
+
+        self._n_tempparam = len(tempparam)
+        self._n_radiusparam = len(radiusparam)
+
+        self._parameters = np.array([1e-5])
+        self._parameters = np.append(self._parameters, tempparam)
+        self._parameters = np.append(self._parameters, radiusparam)
+
+        self._param_names = ['d']
+        self.param_names_latex = ['d']
+
+        for k in range(self._n_tempparam):
+            self._param_names.append('T%i'%k)
+            self.param_names_latex.append('T_%i'%k)
+
+        for k in range(self._n_radiusparam):
+            self._param_names.append('R%i'%k)
+            self.param_names_latex.append('R_%i'%k)
+
+    def minwave(self):  
+        return 1e-100
+
+    def maxwave(self):  
+        return 1e100
+    
+    def minphase(self):
+        return self._minphase
+
+    def maxphase(self):
+        return self._maxphase
+
+    def temperature(self, phase):
+        param = self._parameters[1:self._n_tempparam+1]
+        T = self._tempfunc(param, phase)
+        try:
+            T[(T < 1.)] = 1.
+        except TypeError:
+            if T < 1.:
+                return 1.
+        return T
+        
+    def radius(self, phase):
+        param = self._parameters[self._n_tempparam+1:self._n_tempparam+self._n_radiusparam+1]
+        R = self._radiusfunc(param, phase)
+        try:
+            R[(phase < self.minphase()) | (phase > self.maxphase()) | (R < 0.)] = 0.
+        except TypeError:
+            if phase < self.minphase() or phase > self.maxphase() or R < 0.:
+                return 0.
+        return R
+    
+    def luminosity(self, phase):
+        return 0.5670367 * self.temperature(phase)**4 * 4 * np.pi * (self.radius(phase)*6.957e8) **2
+    
+    def _flux(self, phase, wave):
+        wave = np.array(wave)
+        return np.array([blackbody(wave, 
+                                   T=self.temperature(p_),
+                                   R=self.radius(p_),
+                                   d=self._parameters[0]) 
+                         for p_ in phase])
+
+class SpectralIndexSource(sncosmo.Source):
+    """
+    """
+    def __init__(self, minphase=0.1, maxphase=30,
+                 fluxfunc=(lambda p, t: t ** (-0.4 * p[0])),
+                 specfunc=(lambda p, t: p[0]),
+                 fluxparam=[1.], specparam=[1.],
+                 name=None, version=None):
+        self.name = name
+        self.version = version
+
+        self._minphase = minphase
+        self._maxphase = maxphase
+
+        self._fluxfunc = fluxfunc
+        self._specfunc = specfunc
+
+        self._n_fluxparam = len(fluxparam)
+        self._n_specparam = len(specparam)
+
+        self._parameters = np.array([1.])
+        self._parameters = np.append(self._parameters, fluxparam)
+        self._parameters = np.append(self._parameters, specparam)
+
+        self._param_names = ['amplitude']
+        self.param_names_latex = ['A']
+
+        for k in range(self._n_fluxparam):
+            self._param_names.append('f%i'%k)
+            self.param_names_latex.append('f_%i'%k)
+
+        for k in range(self._n_specparam):
+            self._param_names.append('a%i'%k)
+            self.param_names_latex.append('\alpha_%i'%k)
+
+
+    def minwave(self):  
+        return 1e-100
+
+    def maxwave(self):  
+        return 1e100
+    
+    def minphase(self):
+        return self._minphase
+
+    def maxphase(self):
+        return self._maxphase
+
+    def _flux(self, phase, wave):
+        wave = np.array(wave)
+        fluxparam_ = self._parameters[1:self._n_fluxparam+1]
+        specparam = self._parameters[self._n_fluxparam+1:self._n_fluxparam+self._n_specparam+1]
+        return np.array([(self._parameters[0]
+                          * self._fluxfunc(fluxparam, phase)
+                          * wave ** self._specfunc(specparam, phase)) 
+                         for p_ in phase])
+
 #######################################
 #                                     #
 # Auxilary functions                  #
 #                                     #
 #######################################
-def blackbody(wl, T=2e4):
+def blackbody(wl, T=6e3, R=1., d=1e-5):
     # wl in Ångströms
     # T in Kelvin
-    # output is not normalized because sncosmo amplitude will be scaled to some
-    # arbitrary value
-    return 1.19104295262e+34 * wl**-5 / (np.exp(1.43877735383e+8 / (wl*T)) - 1)
+    # R in solar radii
+    # d in Mpc
+    # output in erg s^-1 cm^-2 Angstrom^-1
+    B = 1.19104295262e+27 * wl**-5 / (np.exp(1.43877735383e+8 / (wl*T)) - 1)
+    return B * (R*6.957e8 / (d*3.0857e22))**2
