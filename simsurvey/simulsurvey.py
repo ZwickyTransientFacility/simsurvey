@@ -62,8 +62,6 @@ class SimulSurvey( BaseObject ):
 
         if plan is not None:
             self.set_plan(plan)
-
-        if instprop is not None:
             self.set_instruments(instprop)
 
         if blinded_bias is not None:
@@ -228,7 +226,7 @@ class SimulSurvey( BaseObject ):
 
     # -------------
     # - Instruments
-    def set_instruments(self,properties):
+    def set_instruments(self, properties):
         """
         properties must be a dictionary containing the
         instruments' information (bandname,gain,zp,zpsys,err_calib) related
@@ -242,12 +240,16 @@ class SimulSurvey( BaseObject ):
         """
         prop = deepcopy(properties)
         for band,d in prop.items():
-            gain,zp,zpsys = d.pop("gain"),d.pop("zp"),d.pop("zpsys","ab")
+            gain,zp,zpsys = d.pop("gain", 1.), d.pop("zp", None), d.pop("zpsys","ab")
             err_calib = d.pop("err_calib", None)
             if gain is None or zp is None:
                 raise ValueError('gain or zp is None or not defined for %s'%band)
-            self.add_instrument(band,gain,zp,zpsys,err_calib,
+            self.add_instrument(band, gain, zp, zpsys, err_calib,
                                 update=False,**d)
+
+        for b_ in np.unique(self.pointings["band"]):
+            if b_ not in self.instruments.keys():
+                self.add_instrument(b_, 1., 30., 'ab', None, update=False)
 
         #self._reset_observations_()
 

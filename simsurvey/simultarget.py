@@ -1256,17 +1256,17 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
     def lightcurve_generic_ExpandingBlackBody_basic(redshifts, model,
                                                     sig_mag=0.1,
-                                                    r_v=2., ebv_rate=0.11
+                                                    r_v=2., ebv_rate=0.11,
                                                     cosmo=PlancK15,
                                                     **kwargs):
-    """
-    """
-    return {
-        'd': (cosmo.luminosity_distance.value
-              * 10**(-0.4*np.random.normal(0, sig_mag))),
-        'hostr_v': r_v * np.ones(len(redshifts)),
-        'hostebv': np.random.exponential(ebv_rate, len(redshifts))
-    }
+        """
+        """
+        return {
+            'd': (cosmo.luminosity_distance.value
+                  * 10**(-0.4*np.random.normal(0, sig_mag))),
+            'hostr_v': r_v * np.ones(len(redshifts)),
+            'hostebv': np.random.exponential(ebv_rate, len(redshifts))
+        }
         
 
 

@@ -192,17 +192,20 @@ class ExpandingBlackBodySource(sncosmo.Source):
         return T
         
     def radius(self, phase):
-        param = self._parameters[self._n_tempparam+1:self._n_tempparam+self._n_radiusparam+1]
+        param = self._parameters[self._n_tempparam+1:
+                                 self._n_tempparam+self._n_radiusparam+1]
         R = self._radiusfunc(param, phase)
         try:
-            R[(phase < self.minphase()) | (phase > self.maxphase()) | (R < 0.)] = 0.
+            R[(phase < self.minphase())
+              | (phase > self.maxphase()) | (R < 0.)] = 0.
         except TypeError:
             if phase < self.minphase() or phase > self.maxphase() or R < 0.:
                 return 0.
         return R
     
     def luminosity(self, phase):
-        return 0.5670367 * self.temperature(phase)**4 * 4 * np.pi * (self.radius(phase)*6.957e8) **2
+        return (0.5670367 * self.temperature(phase)**4
+                * 4 * np.pi * (self.radius(phase)*6.957e8) **2)
     
     def _flux(self, phase, wave):
         wave = np.array(wave)
@@ -263,7 +266,8 @@ class SpectralIndexSource(sncosmo.Source):
     def _flux(self, phase, wave):
         wave = np.array(wave)
         fluxparam_ = self._parameters[1:self._n_fluxparam+1]
-        specparam = self._parameters[self._n_fluxparam+1:self._n_fluxparam+self._n_specparam+1]
+        specparam = self._parameters[self._n_fluxparam+1:
+                                     self._n_fluxparam+self._n_specparam+1]
         return np.array([(self._parameters[0]
                           * self._fluxfunc(fluxparam, phase)
                           * wave ** self._specfunc(specparam, phase)) 
