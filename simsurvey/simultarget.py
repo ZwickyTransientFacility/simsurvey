@@ -98,7 +98,7 @@ class TransientGenerator( BaseObject ):
         self.create(**kwargs)
 
     def create(self, zrange=(0.0, 0.2), ratekind="basic", ratefunc=None,
-               ntransient=None, transienttype=None, template=None, load=False,
+               ntransient=None, transient=None, template=None, load=False,
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90),
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01):
@@ -123,7 +123,7 @@ class TransientGenerator( BaseObject ):
                                          "mw_exclusion":mw_exclusion})
 
             self.set_transient_parameters(ratekind=ratekind, ratefunc=ratefunc,
-                                          transienttype=transienttype, template=template,
+                                          transient=transient, template=template,
                                           ntransient=ntransient,
                                           update=False, **transientprop)
 
@@ -191,7 +191,7 @@ class TransientGenerator( BaseObject ):
 
     def set_transient_parameters(self,ratekind="basic", ratefunc=None,
                                  ntransient=None, update=True,
-                                 transienttype=None,
+                                 transient=None,
                                  template=None, **kwargs):
         """
         This method will define the transient properties.
@@ -200,8 +200,8 @@ class TransientGenerator( BaseObject ):
             self._properties["transient_coverage"] = {}
 
         # - you are good to fill it
-        if transienttype is not None:
-            self._properties["transient_coverage"]["transienttype"] = transienttype
+        if transient is not None:
+            self._properties["transient_coverage"]["transienttype"] = transient
         if template is not None:
             self._properties["transient_coverage"]["template"] = template
         if ratekind is not None:
@@ -502,7 +502,6 @@ class TransientGenerator( BaseObject ):
                                       self.zcmb_range[0], self.zcmb_range[1],
                                       ratefunc=self.ratefunc))
             
-            
         self.simul_parameters["mjd"] = self._simulate_mjd_()
         self.simul_parameters["ra"], self.simul_parameters["dec"] = \
           random.radec(self.ntransient,
@@ -737,8 +736,8 @@ class TransientGenerator( BaseObject ):
         Set the transient model.
         If it does not have MW dust effect, the effect is added.
         """
-        if model.__class__ is not sncosmo.models.Model:
-            raise TypeError("model must be sncosmo.model.Model")
+        # if model.__class__ is not sncosmo.models.Model:
+        #     raise TypeError("model must be sncosmo.model.Model")
 
         if "mwebv" not in model.param_names:
             model.add_effect(sncosmo.CCM89Dust(), 'mw', 'obs')
@@ -921,13 +920,13 @@ class RateGenerator( _PropertyGenerator_ ):
         """
         # ---------------
         # - Transients
-        if transient is None or transient == "":
-            avialable_rates = self.known_rates
-            transient = None
-        elif transient == "Ia":
-            avialable_rates = self.known_Ia_rates
-        elif ratekind not in ["custom"]:
-            raise ValueError("'%s' is not a known transient"%transient)
+        # if transient is None or transient == "":
+        #     avialable_rates = self.known_rates
+        #     transient = None
+        # elif transient == "Ia":
+        #     avialable_rates = self.known_Ia_rates
+        # elif ratekind not in ["custom"]:
+        #     raise ValueError("'%s' is not a known transient"%transient)
     
         # ---------------
         # - Rate Kinds
@@ -935,13 +934,13 @@ class RateGenerator( _PropertyGenerator_ ):
             if ratefunc is None:
                 raise ValueError("Ratekind 'custom' requires ratefunc")
             return ratefunc
-        elif ratekind not in avialable_rates:
-            raise ValueError("not '%s' rate kind for '%s'"%(ratekind,transient)+\
-                             "These are: "+",".join(avialable_rates))
-        # -- the output
-        if transient is None:
-            return eval("self.rate_%s"%(ratekind))
-        return eval("self.rate_%s_%s"%(transient,ratekind))
+
+        name = '%s_%s'%(transient, ratekind)
+        if name in self.known_rates:
+            return eval("self.rate_%s"%(name))
+        else:
+            raise ValueError("no '%s' rate found"%(name)+\
+                             "Available rates: "+",".join(self.known_rates))
 
     # ========================== #
     # = Rates                  = #
@@ -977,21 +976,21 @@ class RateGenerator( _PropertyGenerator_ ):
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 2.25.e-5
+        return 2.25e-5
 
     def rate_IIn_basic(self,z):
         """
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 7.5.e-6
+        return 7.5e-6
 
     def rate_IIP_basic(self,z):
         """
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 1.2.e-4
+        return 1.2e-4
 
     # ========================== #
     # = *** Rates              = #
@@ -1057,8 +1056,8 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         """
         name = "%s_%s"%(transient, template)
-        if name in self.available_models:
-            eval("self.model_%s"%name)
+        if name in self.known_models:
+            return eval("self.model_%s()"%name)
         else:
             raise ValueError("No lightcurve model available for '%s'"%name)
 
@@ -1139,19 +1138,11 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     # ----------------- #
 
     # Functions to be implemented
-    # Separate randomizer:
-    # - Scale to mag (at peak our specific day)
-    # - Scale to distance
     # Lightcurve parameter randomizers:
-    # - Ia hsiao basic
-    # - Ibc nugent basic
-    # - IIn nugent basic (including mag distro trunction)
-    # - IIP nugent basic
     # - Ibc snana basic
     # - IIn snana basic (including mag distro trunction)
     # - IIP snana basic
     # - SpectralIndexSource
-    # - ExpandingBlackBodySource
 
     def lightcurve_Ia_salt2_basic(self, redshifts, model=None,
                                   color_mean=0, color_sigma=0.1,
@@ -1181,7 +1172,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                       mabs_mean=-19.3, mabs_sigma=0.12,
                                       color_mean=0, color_sigma=0.1,
                                       stretch_mean=(0.5, -1), stretch_sigma=(1, 1),
-                                      stretch_thr=0.75, alpha=0.13, beta=3,
+                                      stretch_thr=0.75, alpha=0, beta=3,
                                       cosmo=Planck15):
         """
         stretch parameters assume bimodal distribution
@@ -1214,7 +1205,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                 'x1':np.array(x1),
                 'c':np.array(c)}
 
-    def lightcurve_Ia_hsiao_basic(redshifts, model,
+    def lightcurve_Ia_hsiao_basic(self, redshifts, model,
                                   mag=(-19.3, 0.1),
                                   r_v=2., ebv_rate=0.11,
                                   **kwargs):
@@ -1226,16 +1217,16 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     # ----------------- #
     # - CC LC         - #
     # ----------------- #
-    def lightcurve_Ibc_nugent_basic(redshifts, model,
+    def lightcurve_Ibc_nugent_basic(self, redshifts, model,
                                     mag=(-17.5, 1.2),
                                     r_v=2., ebv_rate=0.11,
                                     **kwargs):
         """
         """
         return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
-                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+                                        r_v=r_v, ebv_rate=ebv_rate, **kwargs)
 
-    def lightcurve_IIn_nugent_basic(redshifts, model,
+    def lightcurve_IIn_nugent_basic(self, redshifts, model,
                                     mag=(-18.5, 1.4),
                                     mag_dist_trunc=(-1e6, 1),
                                     r_v=2., ebv_rate=0.11,
@@ -1243,19 +1234,19 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         """
         return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
-                                            mag_dist_trunc=mag_dist_trunc,
-                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+                                        mag_dist_trunc=mag_dist_trunc,
+                                        r_v=r_v, ebv_rate=ebv_rate, **kwargs)
 
-    def lightcurve_IIP_nugent_basic(redshifts, model,
+    def lightcurve_IIP_nugent_basic(self, redshifts, model,
                                     mag=(-16.75, 1.),
                                     r_v=2., ebv_rate=0.11,
                                     **kwargs):
         """
         """
         return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
-                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+                                        r_v=r_v, ebv_rate=ebv_rate, **kwargs)
 
-    def lightcurve_generic_ExpandingBlackBody_basic(redshifts, model,
+    def lightcurve_generic_ExpandingBlackBody_basic(self, redshifts, model,
                                                     sig_mag=0.1,
                                                     r_v=2., ebv_rate=0.11,
                                                     cosmo=Planck15,
@@ -1289,7 +1280,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     #     return self._parse_rate_("lightcurve_Ia")
 
     @property
-    def know_models(self):
+    def known_models(self):
         return self._parse_rate_("model")
     
 
@@ -1309,15 +1300,13 @@ def lightcurve_scaled_to_mag(redshifts, model,
     # Amplitude
     amp = []
     for z in redshifts:
-        good = False
-        while not good:
-            if mag_dist_trunc is None:
-                mabs = np.random.normal(mag[0], mag[1])
-            else:
-                mabs = truncnorm.rvs(mag_dist_trunc[0],
-                                     mag_dist_trunc[1],
-                                     mag[0],
-                                     mag[1])
+        if mag_dist_trunc is None:
+            mabs = np.random.normal(mag[0], mag[1])
+        else:
+            mabs = truncnorm.rvs(mag_dist_trunc[0],
+                                 mag_dist_trunc[1],
+                                 mag[0],
+                                 mag[1])
 
         if t_scale is None:
             model.set(z=z)
