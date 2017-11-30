@@ -98,7 +98,7 @@ class TransientGenerator( BaseObject ):
         self.create(**kwargs)
 
     def create(self, zrange=(0.0, 0.2), ratekind="basic", ratefunc=None,
-               ntransient=None, type_=None, template=None, load=False,
+               ntransient=None, transienttype=None, template=None, load=False,
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90),
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01):
@@ -123,7 +123,7 @@ class TransientGenerator( BaseObject ):
                                          "mw_exclusion":mw_exclusion})
 
             self.set_transient_parameters(ratekind=ratekind, ratefunc=ratefunc,
-                                          type_=type_, template=template,
+                                          transienttype=transienttype, template=template,
                                           ntransient=ntransient,
                                           update=False, **transientprop)
 
@@ -190,7 +190,8 @@ class TransientGenerator( BaseObject ):
             self._update_()
 
     def set_transient_parameters(self,ratekind="basic", ratefunc=None,
-                                 ntransient=None, update=True, type_=None,
+                                 ntransient=None, update=True,
+                                 transienttype=None,
                                  template=None, **kwargs):
         """
         This method will define the transient properties.
@@ -199,8 +200,8 @@ class TransientGenerator( BaseObject ):
             self._properties["transient_coverage"] = {}
 
         # - you are good to fill it
-        if type_ is not None:
-            self._properties["transient_coverage"]["transienttype"] = type_
+        if transienttype is not None:
+            self._properties["transient_coverage"]["transienttype"] = transienttype
         if template is not None:
             self._properties["transient_coverage"]["template"] = template
         if ratekind is not None:
