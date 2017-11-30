@@ -1058,7 +1058,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         name = "%s_%s"%(transient, template)
         if name in self.known_models:
-            return eval("self.model_%s()"%name)
+            return eval("self.model_%s(**kwargs)"%name)
         else:
             raise ValueError("No lightcurve model available for '%s'"%name)
 
@@ -1087,8 +1087,8 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         sncosmo.get_source('hsiao', version='3.0')
         p, w, f = sncosmo.read_griddata_fits(
-            os.path.join(sncosmo.get_cache_dir(),
-                         'models/hsiao/Hsiao_SED_V3.fits')
+            os.path.join(sncosmo.builtins.get_cache_dir(),
+                         'sncosmo/models/hsiao/Hsiao_SED_V3.fits')
         )
 
         return sncosmo.Model(
@@ -1255,7 +1255,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         """
         return {
-            'd': (cosmo.luminosity_distance.value
+            'd': (cosmo.luminosity_distance(redshifts).value
                   * 10**(-0.4*np.random.normal(0, sig_mag))),
             'hostr_v': r_v * np.ones(len(redshifts)),
             'hostebv': np.random.exponential(ebv_rate, len(redshifts))

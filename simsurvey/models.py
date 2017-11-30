@@ -265,12 +265,14 @@ class SpectralIndexSource(sncosmo.Source):
 
     def _flux(self, phase, wave):
         wave = np.array(wave)
-        fluxparam_ = self._parameters[1:self._n_fluxparam+1]
+        fluxparam = self._parameters[1:self._n_fluxparam+1]
         specparam = self._parameters[self._n_fluxparam+1:
                                      self._n_fluxparam+self._n_specparam+1]
-        return np.array([(self._parameters[0]
+        return np.array([((self._parameters[0]
                           * self._fluxfunc(fluxparam, phase)
-                          * wave ** self._specfunc(specparam, phase)) 
+                          * wave ** self._specfunc(specparam, phase))
+                          if p_ >= self.minphase and p_ <= self.maxphase
+                          else np.zeros(wave.shape))
                          for p_ in phase])
 
 #######################################
