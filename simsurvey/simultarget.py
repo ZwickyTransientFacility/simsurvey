@@ -3,6 +3,7 @@
 
 """This module contains generators for simulated transients"""
 
+import os
 import warnings
 import numpy as np
 from numpy.random import uniform, normal
