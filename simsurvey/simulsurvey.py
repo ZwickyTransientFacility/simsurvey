@@ -908,12 +908,18 @@ class LightcurveCollection( BaseObject ):
         loaded = cPickle.load(open(filename))
         self._properties['lcs'] = loaded['lcs']
         self._properties['meta'] = loaded['meta']
+        if 'stats' in loaded.keys():
+            self._derived_properties['stats'] = loaded['stats']
+        if 'side' in loaded.keys():
+            self._side_properties = loaded['side']
 
     def save(self, filename):
         """
         """
         cPickle.dump({'lcs': self._properties["lcs"],
-                      'meta': self._properties["meta"]},
+                      'meta': self._properties["meta"],
+                      'stats': self._derived_properties["stats"],
+                      'side': self._side_properties},
                      open(filename, 'w'))
 
     # ---------------------- #
