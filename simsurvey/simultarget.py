@@ -920,20 +920,8 @@ class RateGenerator( _PropertyGenerator_ ):
         function(z)
         """
         # ---------------
-        # - Transients
-        # if transient is None or transient == "":
-        #     avialable_rates = self.known_rates
-        #     transient = None
-        # elif transient == "Ia":
-        #     avialable_rates = self.known_Ia_rates
-        # elif ratekind not in ["custom"]:
-        #     raise ValueError("'%s' is not a known transient"%transient)
-    
-        # ---------------
         # - Rate Kinds
-        if ratekind == "custom":
-            if ratefunc is None:
-                raise ValueError("Ratekind 'custom' requires ratefunc")
+        if ratefunc is not None:
             return ratefunc
 
         name = '%s_%s'%(transient, ratekind)
@@ -1229,7 +1217,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
     def lightcurve_IIn_nugent_basic(self, redshifts, model,
                                     mag=(-18.5, 1.4),
-                                    mag_dist_trunc=(-1e6, 1),
+                                    mag_dist_trunc=(-1, 1e6),
                                     r_v=2., ebv_rate=0.11,
                                     **kwargs):
         """
