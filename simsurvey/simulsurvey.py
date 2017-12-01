@@ -147,7 +147,7 @@ class SimulSurvey( BaseObject ):
             # correlated terms for the calibration uncertainty
             fluxerr = np.sqrt(obs['skynoise']**2 +
                               np.abs(lc['flux']) / obs['gain'])
-            
+
             fluxcov = np.diag(fluxerr**2)
             save_cov = False
             for band in set(obs['band']):
@@ -239,17 +239,21 @@ class SimulSurvey( BaseObject ):
                       "desr":{"gain":1,"zp":30,"zpsys":'ab',"err_calib":0.005}}
         """
         prop = deepcopy(properties)
-        for band,d in prop.items():
-            gain,zp,zpsys = d.pop("gain", 1.), d.pop("zp", None), d.pop("zpsys","ab")
-            err_calib = d.pop("err_calib", None)
-            if gain is None or zp is None:
-                raise ValueError('gain or zp is None or not defined for %s'%band)
-            self.add_instrument(band, gain, zp, zpsys, err_calib,
-                                update=False,**d)
+    
+        if prop is not None:
+            for band, d_ in prop.items():
+                gain = d_.pop("gain", 1.)
+                zp = d_.pop("zp", None)
+                zpsys = d_.pop("zpsys","ab")
+                err_calib = d_.pop("err_calib", None)
+                if gain is None or zp is None:
+                    raise ValueError('gain or zp is None or not defined for %s'%band)
+                self.add_instrument(band, gain, zp, zpsys, err_calib,
+                                    update=False, **d_)
 
         for b_ in np.unique(self.pointings["band"]):
             if b_ not in self.instruments.keys():
-                self.add_instrument(b_, 1., 30., 'ab', None, update=False)
+                self.add_instrument(b_, update=False)
 
         #self._reset_observations_()
 
@@ -272,19 +276,22 @@ class SimulSurvey( BaseObject ):
     # ---------------------- #
     # - Add Stuffs         - #
     # ---------------------- #
-    def add_instrument(self, bandname, gain, zp=30, zpsys="ab", err_calib=None,
+    def add_instrument(self, bandname, gain=1., zp=30, zpsys="ab", err_calib=None,
                        force_it=True, update=True, **kwargs):
         """
         kwargs could be any properties you wish to save with the instrument
         """
-        if self.instruments is None:
+        if self._properties["instruments"] is None:
             self._properties["instruments"] = {}
 
         if bandname in self.instruments.keys() and not force_it:
             raise AttributeError("%s is already defined."+\
                                  " Set force_it to True to overwrite it. ")
 
-        instprop = {"gain":gain, "zp":zp, "zpsys":zpsys, "err_calib":err_calib}
+        instprop = {"gain": gain,
+                    "zp": zp,
+                    "zpsys": zpsys,
+                    "err_calib": err_calib}
         self.instruments[bandname] = kwargs_update(instprop,**kwargs)
 
         if update:
@@ -412,6 +419,8 @@ class SimulSurvey( BaseObject ):
     @property
     def instruments(self):
         """The basic information relative to the instrument used for the survey"""
+        if self._properties["instruments"] is None:
+            return {}
         return self._properties["instruments"]
 
     @property
@@ -426,7 +435,7 @@ class SimulSurvey( BaseObject ):
 
     def is_set(self):
         """This parameter is True if this has plan, instruments and genetor set"""
-        return not (self.instruments is None or \
+        return not (self._properties["instruments"] is None or \
                     self.generator is None or \
                     self.plan is None)
 
