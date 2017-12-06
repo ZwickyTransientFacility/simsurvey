@@ -1193,11 +1193,10 @@ class LightcurveCollection( BaseObject ):
 # = Lightcurve statistics = #
 # ========================= #
 def get_p_det_last(lc, thr=5., n_samenight=2):
+    """
+    """
     mask_det = lc['flux']/lc['fluxerr'] > thr
-    lc_nights = np.unique([int(t_) for t_ in lc['time']])
-    idx_nights = [np.array([k for k in xrange(len(lc)) 
-                            if int(lc['time'][k]) == t_]) 
-                  for t_ in lc_nights]
+    idx_nights = identify_nights(lc['time'])
         
     if np.sum(mask_det) > 1:
         mult_det = [k_ for k_, idx_ in enumerate(idx_nights)
@@ -1221,11 +1220,30 @@ def get_p_det_last(lc, thr=5., n_samenight=2):
         
     return p0, p1, dt
 
+def identify_nights(t, interval=0.25):
+    """
+    """
+    bins = np.arange(int(min(t_)), int(max(t_)) + 1.01, interval)
+    t_binned, _ = np.histogram(t_, bins=bins)
+
+    k = 0
+    idx_nights = [[]]
+    for n_ in t_binned:
+        if n_ == 0 and len(idx_nights[-1]) > 0:
+            idx_nights.append([])
+        else:
+            idx_nights[-1].extend(range(k, k+n_))
+            k += n_
+
+    return [np.array(idx_) for idx_ in idx_nights]
+
 def get_lc_max(lc, band):
-     lc_b = lc[lc['band'] == band]
-     if len(lc_b) > 0:
-         max_flux = np.max(lc_b['flux'])
-         zp = lc_b['zp'][lc_b['flux'] == max_flux]
-         return -2.5 * np.log10(max_flux) + zp
-     else:
-         return 99.
+    """
+    """
+    lc_b = lc[lc['band'] == band]
+    if len(lc_b) > 0:
+        max_flux = np.max(lc_b['flux'])
+        zp = lc_b['zp'][lc_b['flux'] == max_flux]
+        return -2.5 * np.log10(max_flux) + zp
+    else:
+        return 99.
