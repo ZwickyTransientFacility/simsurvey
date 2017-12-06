@@ -1197,7 +1197,7 @@ def get_p_det_last(lc, thr=5., n_samenight=2):
     """
     mask_det = lc['flux']/lc['fluxerr'] > thr
     idx_nights = identify_nights(lc['time'])
-        
+
     if np.sum(mask_det) > 1:
         mult_det = [k_ for k_, idx_ in enumerate(idx_nights)
                     if np.sum(mask_det[idx_]) >= n_samenight]
@@ -1223,19 +1223,19 @@ def get_p_det_last(lc, thr=5., n_samenight=2):
 def identify_nights(t, interval=0.25):
     """
     """
-    bins = np.arange(int(min(t_)), int(max(t_)) + 1.01, interval)
-    t_binned, _ = np.histogram(t_, bins=bins)
+    bins = np.arange(int(min(t)), int(max(t)) + 1.01, interval)
+    t_binned, _ = np.histogram(t, bins=bins)
 
     k = 0
     idx_nights = [[]]
-    for n_ in t_binned:
-        if n_ == 0 and len(idx_nights[-1]) > 0:
+    for n in t_binned:
+        if n == 0 and len(idx_nights[-1]) > 0:
             idx_nights.append([])
         else:
-            idx_nights[-1].extend(range(k, k+n_))
-            k += n_
+            idx_nights[-1].extend(range(k, k + n))
+            k += n
 
-    return [np.array(idx_) for idx_ in idx_nights]
+    return [np.array(idx_) for idx_ in idx_nights if len(idx_) > 0]
 
 def get_lc_max(lc, band):
     """
