@@ -999,9 +999,9 @@ class LightcurveCollection( BaseObject ):
         if self._properties[meta_name] is None:
             keys = [k for k in info.keys()]
             dtypes = [type(v) for v in info.values()]
-            self._create_meta_(keys, dtypes)
+            self._create_meta_(keys, dtypes, suffix)
 
-        for k in self.meta.dtype.names:
+        for k in self._properties[meta_name].keys():
             self._properties[meta_name][k] = np.append(
                 self._properties[meta_name][k],
                 info[k]
@@ -1144,12 +1144,12 @@ class LightcurveCollection( BaseObject ):
         if (self._properties["meta"] is not None and
             self._properties["meta_rejected"] is not None):
             out = odict()
-            for k in self.meta.keys():
+            for k in self.meta.dtype.names:
                 out[k] = np.concatenate((self.meta[k], self.meta_rejected[k]))
-            retunr dict_to_array(out)
+            return dict_to_array(out)
         elif self._properties["meta_rejected"] is None:
             return self.meta
-        elif self._properies["meta"] is None:
+        elif self._properties["meta"] is None:
             return self.meta_rejected
         else:
             return None
