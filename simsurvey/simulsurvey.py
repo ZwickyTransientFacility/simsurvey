@@ -639,7 +639,7 @@ class SurveyPlan( BaseObject ):
     # ---------------------- #
     def load_opsim(self, filename, survey_table='Summary', field_table='Field',
                    band_dict=None, skybright_key='filtSkyBright', skybright_factor=1.,
-                   default_skybright=21, zp=30):
+                   default_skybright=22.25, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
@@ -680,12 +680,14 @@ class SurveyPlan( BaseObject ):
         loaded['fieldDec'] /= _d2r
 
         if skybright_key is not None:
-            loaded[skybright_key] = np.array([(d if d is not None else default_skybright)
-                                                 for d in loaded[skybright_key]])
+            loaded[skybright_key] = np.array([(d if (d is not None) and (d > 0.)
+                                               else default_skybright)
+                                              for d in loaded[skybright_key]])
             loaded['skynoise'] = 10 ** (-0.4 * (loaded[skybright_key] - zp)) / skybright_factor
         else:
             loaded['skynoise'] = np.ones(len(loaded['fieldRA']))
             loaded['skynoise'] *= 10 ** (-0.4 * (default_skybright - zp)) / skybright_factor
+        loaded['zp'] = [zp for r_ in loaded_['fieldRA']]
 
         if band_dict is not None:
             loaded['filter'] = [band_dict[band] for band in loaded['filter']]
@@ -864,7 +866,7 @@ class LightcurveCollection( BaseObject ):
     """
     __nature__ = "LightcurveCollection"
 
-    PROPERTIES         = ['lcs','meta']
+    PROPERTIES         = ['lcs', 'meta', 'meta_rejected']
     SIDE_PROPERTIES    = ['threshold', 'n_samenight', 'p_bins']
     DERIVED_PROPERTIES = ['stats']
 
@@ -977,39 +979,42 @@ class LightcurveCollection( BaseObject ):
     def _add_meta_(self, meta, mask):
         """
         """
-        if type(meta) is list:
-            if self.meta is None:
-                keys = [k for k in meta[0].keys()]
-                dtypes = [type(v) for v in meta[0].values()]
-                self._create_meta_(keys, dtypes)
-                
+        if type(meta) is list:                
             for (meta_, mask_) in zip(meta, mask):
                 if mask_:
-                    for k in self.meta.dtype.names:
-                        self._properties['meta'][k] = np.append(
-                            self._properties['meta'][k],
-                            meta_[k]
-                        )
+                    self._add_meta_info_(meta_)
+                else:
+                    self._add_meta_info_(meta_, suffix='_rejected')
         else:
             if mask:
-                if self.meta is None:
-                    keys = [k for k in meta.keys()]
-                    dtypes = [type(v) for v in meta.values()]
-                    self._create_meta_(keys, dtypes)
+                self._add_meta_info_(meta)
+            else:
+                self._add_meta_info_(meta, suffix='_rejected')
 
-                for k in self.meta.dtype.names:
-                    self._properties['meta'][k] = np.append(
-                        self._properties['meta'][k],
-                        meta[k]
-                    )            
+    def _add_meta_info_(self, info, suffix=''):
+        """
+        """
+        meta_name = 'meta%s'%suffix
 
-    def _create_meta_(self, keys, dtypes):
+        if self._properties[meta_name] is None:
+            keys = [k for k in info.keys()]
+            dtypes = [type(v) for v in info.values()]
+            self._create_meta_(keys, dtypes)
+
+        for k in self.meta.dtype.names:
+            self._properties[meta_name][k] = np.append(
+                self._properties[meta_name][k],
+                info[k]
+            )
+
+    def _create_meta_(self, keys, dtypes, suffix=''):
         """
         Create the ordered ditcionary of meta parameters based of first item
         """
-        self._properties['meta'] = odict()
+        meta_name = 'meta%s'%suffix
+        self._properties[meta_name] = odict()
         for k, t in zip(keys, dtypes):
-            self._properties['meta'][k] = np.array([], dtype=t)
+            self._properties[meta_name][k] = np.array([], dtype=t)
 
     def _prep_stats_(self):
         """
@@ -1121,6 +1126,33 @@ class LightcurveCollection( BaseObject ):
         if self._properties["meta"] is None:
             return None
         return dict_to_array(self._properties["meta"])
+
+    @property
+    def meta_rejected(self):
+        """numpy structured array with of meta parameters
+        of transients rejected by the filter
+        """
+        if self._properties["meta_rejected"] is None:
+            return None
+        return dict_to_array(self._properties["meta_rejected"])
+
+    @property
+    def meta_full(self):
+        """numpy structured array with of meta parameters
+        of all simulated transients
+        """
+        if (self._properties["meta"] is not None and
+            self._properties["meta_rejected"] is not None):
+            out = odict()
+            for k in self.meta.keys():
+                out[k] = np.concatenate((self.meta[k], self.meta_rejected[k]))
+            retunr dict_to_array(out)
+        elif self._properties["meta_rejected"] is None:
+            return self.meta
+        elif self._properies["meta"] is None:
+            return self.meta_rejected
+        else:
+            return None
 
     @property
     def threshold(self):

@@ -71,22 +71,7 @@ class BlackBodySource(sncosmo.Source):
                         blackbody(wave, self._parameters[2]))
 
 class MultiSource(sncosmo.Source):
-    """A simple spectral source for a transient with a 
-    black-body spectrum of constant temperature
-    The spectral flux density of this model is given by
-    .. math::
-       F(t, \lambda) = A \\times LC(t / s) \\times B(\lambda, T)
-    where _A_ is the amplitude, _s_ is the "stretch" and 
-    _T_ is the black-body temperature; LC is a dimensionless 
-    lightcurve that defines the time evolution of the flux 
-    while B is the black-body spectrum.
-    Parameters
-    ----------
-    phase : `~numpy.ndarray`
-        Phases in days.
-    flux : `~numpy.ndarray`
-        Model spectral flux density in arbitrary units.
-        Must have shape `(num_phases)`.
+    """
     """   
     _param_names = ['amplitude', 's', 'template_index']
     param_names_latex = ['A', 's', 'k']
