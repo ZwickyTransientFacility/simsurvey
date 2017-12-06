@@ -22,16 +22,8 @@ from utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
-__all__ = ["get_sn_generator", "get_transient_generator",
+__all__ = ["get_transient_generator",
            "generate_transients", "generate_lightcurves"]
-
-
-def get_sn_generator(zrange,ratekind="basic",**kwargs):
-    """
-    This function enables to load the generator of supernovae
-    """
-    return SNIaGenerator(ratekind=ratekind,zrange=zrange,
-                         **kwargs)
 
 def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
                             ra_range=[0,360], dec_range=[-90,90],
@@ -804,78 +796,10 @@ class TransientGenerator( BaseObject ):
         """
         """
         return self.transient_coverage["lightcurve_prop"]
-    
-#######################################
-#                                     #
-# Generator: SN Ia                    #
-#                                     #
-#######################################
-class SNIaGenerator( TransientGenerator ):
-    """
-    This child Class enable to add the SN properties to the
-    transient generator.
-    """
-    
-    # -------------------- #
-    # - Hacked Methods   - #
-    # -------------------- #
-    def set_transient_parameters(self,ratekind="basic",ratefunc=None,
-                                 ntransient=None,
-                                 lcsimulation="basic",
-                                 lcsource="salt2",type_=None,
-                                 update=True,lcsimul_prop={}):
-        """
-        Add to the TransientGenerator the SN Ia properties
-        """
-        # - If this works, you are good to go
-        type_= "Ia" if type_ is None or "Ia" not in type_ else type_
-        f = LightCurveGenerator().get_lightcurve_func(transient=type_,
-                                                      simulation=lcsimulation)
-
-        super(SNIaGenerator,self).set_transient_parameters(type_=type_,
-                                                           ratekind=ratekind,
-                                                           ratefunc=ratefunc,
-                                                           ntransient=ntransient,
-                                                           lcsource=lcsource,
-                                                           lcsimul_func=f,
-                                                           lcsimul_prop=lcsimul_prop,
-                                                           update=update)
         
-    # ----------------- #
-    # - Set Methods   - #
-    # ----------------- #
-    
-    
-    # =========================== #
-    # = Properties and Settings = #
-    # =========================== #
-    @property
-    def color(self):
-        if not self.has_lightcurves() or "c" not in self.lightcurve:
-            raise AttributeError("no 'lightcurve' defined or no color ('c') on it")
-        return np.asarray(self.lightcurve["c"])
-
-    @property
-    def x1(self):
-        if not self.has_lightcurves() or "x1" not in self.lightcurve:
-            raise AttributeError("no 'lightcurve' defined or no x1 on it")
-        return np.asarray(self.lightcurve["x1"])
-
-    @property
-    def host(self):
-        if not self.has_host_param():
-            return np.asarray([None]*self.ntransient)
-        return np.asarray(self.lightcurve["host"])
-
-    def has_host_param(self):
-        if not self.has_lightcurves():
-            raise AttributeError("no 'lightcurve' defined")
-        return True if "host" in self.lightcurve_param_names \
-          else False
-    
 #######################################
 #                                     #
-# Generator: SN Rate                  #
+# Generator: Transient Rate           #
 #                                     #
 #######################################
 class _PropertyGenerator_(BaseObject):
