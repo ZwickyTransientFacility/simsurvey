@@ -1042,6 +1042,14 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                              effect_names=['host'],
                              effect_frames=['rest'])
 
+    def model_generic_SpectralIndex(self, **kwargs):
+        """
+        """
+        return sncosmo.Model(source=SpectralIndexSource(**kwargs),
+                             effects=[sncosmo.CCM89Dust()],
+                             effect_names=['host'],
+                             effect_frames=['rest'])
+
     # ============================ #
     # = LC Parameter randomizers = #
     # ============================ #
@@ -1172,11 +1180,19 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             'hostr_v': r_v * np.ones(len(redshifts)),
             'hostebv': np.random.exponential(ebv_rate, len(redshifts))
         }
-        
 
+    def lightcurve_generic_SpectralIndex_basic(self, redshifts, model,
+                                    mag=(-18., .1),
+                                    r_v=2., ebv_rate=0.11,
+                                    **kwargs):
+        """
+        """
+        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
+                                        r_v=r_v, ebv_rate=ebv_rate, **kwargs)
 
     def lightcurve_Ia_salt2_hostdependent():
         raise NotImplementedError("To be done")
+
     # ========================== #
     # = Properties             = #
     # ========================== #
@@ -1188,10 +1204,6 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def known_lightcurve_simulations(self):
         return self._parse_rate_("lightcurve")
     
-    # @property
-    # def known_Ia_lightcurve_simulation(self):
-    #     return self._parse_rate_("lightcurve_Ia")
-
     @property
     def known_models(self):
         return self._parse_rate_("model")
