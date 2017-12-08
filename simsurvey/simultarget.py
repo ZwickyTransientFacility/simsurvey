@@ -1018,6 +1018,14 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                              effect_names=['host'],
                              effect_frames=['rest'])
 
+    def model_Ibc_snana(self):
+        """
+        """
+        filenames = get_snana_filenames('Ib')
+        filenames.append(get_snana_filenames('Ic'))
+
+        return self.model_generic_MultiSource(files=filenames)
+
     def model_IIn_nugent(self):
         """
         """
@@ -1026,6 +1034,13 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                              effect_names=['host'],
                              effect_frames=['rest'])
 
+    def model_IIn_snana(self):
+        """
+        """
+        filenames = get_snana_filenames('IIn')
+
+        return self.model_generic_MultiSource(files=filenames)
+
     def model_IIP_nugent(self):
         """
         """
@@ -1033,6 +1048,13 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                              effects=[sncosmo.CCM89Dust()],
                              effect_names=['host'],
                              effect_frames=['rest'])
+
+    def model_IIP_snana(self):
+        """
+        """
+        filenames = get_snana_filenames('IIP')
+
+        return self.model_generic_MultiSource(files=filenames)
 
     def model_generic_ExpandingBlackBody(self, **kwargs):
         """
@@ -1046,6 +1068,22 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         """
         return sncosmo.Model(source=SpectralIndexSource(**kwargs),
+                             effects=[sncosmo.CCM89Dust()],
+                             effect_names=['host'],
+                             effect_frames=['rest'])
+
+    def model_generic_MultiSource(self, files=None, **kwargs):
+        """
+        """
+        data_sed = {'p': [], 'w': [], 'f': []}
+        for sed_file in sed_files[0]:
+            p_, w_, f_ = sncosmo.read_griddata_ascii(sed_file)
+            data_sed['p'].append(p_)
+            data_sed['w'].append(w_)
+            data_sed['f'].append(f_)
+
+        source = simsurvey.MultiSource(data_sed['p'], data_sed['w'], data_sed['f'])
+        return sncosmo.Model(source=source,
                              effects=[sncosmo.CCM89Dust()],
                              effect_names=['host'],
                              effect_frames=['rest'])
@@ -1147,6 +1185,17 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
                                         r_v=r_v, ebv_rate=ebv_rate, **kwargs)
 
+    def lightcurve_Ibc_snana_basic(self, redshifts, model,
+                                   mag=(-17.5, 1.2),
+                                   r_v=2., ebv_rate=0.11,
+                                   **kwargs):
+        """
+        """
+        return self.lightcurve_generic_MultiSource_basic(redshifts, model,
+                                                         mag=mag, r_v=r_v,
+                                                         ebv_rate=ebv_rate,
+                                                         **kwargs)
+
     def lightcurve_IIn_nugent_basic(self, redshifts, model,
                                     mag=(-18.5, 1.4),
                                     mag_dist_trunc=(-1, 1e6),
@@ -1158,6 +1207,18 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                         mag_dist_trunc=mag_dist_trunc,
                                         r_v=r_v, ebv_rate=ebv_rate, **kwargs)
 
+    def lightcurve_IIn_snana_basic(self, redshifts, model,
+                                   mag=(-18.5, 1.4),
+                                   mag_dist_trunc=(-1, 1e6),
+                                   r_v=2., ebv_rate=0.11,
+                                   **kwargs):
+        """
+        """
+        return self.lightcurve_generic_MultiSource_basic(redshifts, model,
+                                                         mag=mag, r_v=r_v,
+                                                         ebv_rate=ebv_rate,
+                                                         **kwargs)
+
     def lightcurve_IIP_nugent_basic(self, redshifts, model,
                                     mag=(-16.75, 1.),
                                     r_v=2., ebv_rate=0.11,
@@ -1166,6 +1227,16 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
                                         r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+    def lightcurve_IIP_snana_basic(self, redshifts, model,
+                                   mag=(-16.75, 1.),
+                                   r_v=2., ebv_rate=0.11,
+                                   **kwargs):
+        """
+        """
+        return self.lightcurve_generic_MultiSource_basic(redshifts, model,
+                                                         mag=mag, r_v=r_v,
+                                                         ebv_rate=ebv_rate,
+                                                         **kwargs)
 
     def lightcurve_generic_ExpandingBlackBody_basic(self, redshifts, model,
                                                     sig_mag=0.1,
@@ -1181,14 +1252,17 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             'hostebv': np.random.exponential(ebv_rate, len(redshifts))
         }
 
-    def lightcurve_generic_SpectralIndex_basic(self, redshifts, model,
-                                    mag=(-18., .1),
-                                    r_v=2., ebv_rate=0.11,
-                                    **kwargs):
+    def lightcurve_generic_SpectralIndex_basic(self, redshifts, model, **kwargs):
         """
         """
-        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
-                                        r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+        return lightcurve_scaled_to_mag(redshifts, model, **kwargs)
+
+    def lightcurve_generic_MultiSource_basic(self, redshifts, model, **kwargs):
+        """
+        """
+        return lightcurve_scaled_to_mag(redshifts, model,
+                                        n_templates=len(model._source._model_flux),
+                                        **kwargs)
 
     def lightcurve_Ia_salt2_hostdependent():
         raise NotImplementedError("To be done")
@@ -1215,16 +1289,24 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 #                                     #
 #######################################
 def lightcurve_scaled_to_mag(redshifts, model,
-                             mag=(-19.3, 0.1),
+                             mag=(-18, 0.1),
                              mag_dist_trunc=None,
                              r_v=2., ebv_rate=0.11,
                              t_scale=None, cosmo=Planck15,
+                             n_templates=1,
                              **kwargs):
     """
     """
+    out = {}
+    if n_templates > 1:
+        out['template_index'] = np.random.randint(0, n_temp, len(redshifts))
+        model_kw = [{'template_index': k} for k in out['template_index']]
+    elif n_templates == 1:
+        model_kw = [{} for z in redshifts]
+
     # Amplitude
     amp = []
-    for z in redshifts:
+    for z, model_kw_ in zip(redshifts, model_kw):
         if mag_dist_trunc is None:
             mabs = np.random.normal(mag[0], mag[1])
         else:
@@ -1234,21 +1316,22 @@ def lightcurve_scaled_to_mag(redshifts, model,
                                  mag[1])
 
         if t_scale is None:
-            model.set(z=z)
+            model.set(z=z, **model_kw_)
             model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
             amp.append(model.get('amplitude'))
         else:
-            model.set(z=0, amplitude=1)
+            model.set(z=0, amplitude=1, **model_kw_)
             mag_abs = np.random.normal(mag[0], mag[1])
             mag_current = model.bandmag('sdssr', 'ab', 1)
             dm = mag_current - mag_abs
             amp.append(10**(0.4*(dm-cosmo.distmod(z).value)))
 
-    return {
-        'amplitude': np.array(amp),
-        'hostr_v': r_v * np.ones(len(redshifts)),
-        'hostebv': np.random.exponential(ebv_rate, len(redshifts))
-    }
+    out['amplitude'] = np.array(amp)
+    out['hostr_v'] = r_v * np.ones(len(redshifts))
+    out['hostebv'] =  np.random.exponential(ebv_rate, len(redshifts))
+
+    return out
+
 
 def zdist_fixed_nsim(nsim, zmin, zmax, 
                      ratefunc=lambda z: 1.,
@@ -1303,3 +1386,26 @@ def zdist_fixed_nsim(nsim, zmin, zmax,
 
     for i in xrange(nsim):
         yield float(snrate_ppf(uniform()))
+
+def get_snana_filenames(sntype):
+    """
+    """
+    if not sntype.startswith('SN '):
+        sntype = 'SN %s'%sntype
+
+    reg = sncosmo.registry._get_registry(sncosmo.Source)
+    source_tuples = [(v['name'], v['version'])
+                     for v in reg.get_loaders_metadata()
+                     if v['name'].startswith('snana')
+                     and v['type'] == sntype]
+
+    filenames = []
+    for name, version in source_tuples:
+        filepath = os.path.join(sncosmo.builtins.get_cache_dir(),
+                                'sncosmo',
+                                reg._loaders[(name, version)][1])
+        if not os.exists(filepath):
+            sncosmo.get_source(name, version=version)
+        filenames.append(filepath)
+
+    return filenames
