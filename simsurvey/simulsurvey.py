@@ -5,6 +5,8 @@
 import warnings
 import numpy as np
 import cPickle
+import tarfile
+import os
 from copy import copy, deepcopy
 from collections import OrderedDict as odict
 from itertools import izip
@@ -936,6 +938,102 @@ class LightcurveCollection( BaseObject ):
                       'side': self._side_properties},
                      open(filename, 'w'))
 
+    def save_tar(self, filename, notebook=False, tmpdir='/tmp'):
+        """
+        """
+        cwd = os.getcwd()
+        file_base = filename.split('/')[-1].split('.')[0]
+    
+        os.chdir(tmpdir)
+        os.mkdir(os.path.join(tmpdir, file_base))
+
+        tar = tarfile.open(os.path.join(cwd, filename), mode='w:gz')
+
+        conffile = os.path.join(file_base, 'config')
+        f = open(conffile, 'w')
+        print >> f, 'threshold: %.3f' % self.threshold
+        print >> f, 'n_samenight: %i' % self.n_samenight
+        print >> f, 'p_bins:', self.p_bins
+        f.close()
+        tar.add(conffile)
+        os.remove(conffile)
+
+        tables = [
+            Table(self.meta),
+            Table(self.meta_rejected),
+            self.tab_stats
+        ]
+        filenames = [
+            os.path.join(file_base, 'tab_meta.fits'),
+            os.path.join(file_base, 'tab_meta_rejected.fits'),
+            os.path.join(file_base, 'tab_stats.fits')
+        ]
+
+        for k, v in self.stats['p_binned'].items():
+            tables.append(Table(v))
+            filenames.append(os.path.join(file_base, 'tab_p_binned_%s.fits'))
+
+        for tab, fname in zip(tables, filenames):
+            tab.write(fname)
+            tar.add(fname)
+            os.remove(fname)
+
+        with get_progressbar(3*len(self.lcs), notebook=notebook) as bar:
+            for k, lc_data in enumerate(self.lcs):
+                meta = self.meta[k]
+                lc = Table(data=lc_data,
+                           meta={key: v for key, v in zip(meta.dtype.names, meta)})
+                lc.write(os.path.join(file_base, 'lc_%06i.fits'%k))
+                bar.update()
+
+            for k in range(len(self.lcs)):
+                tar.add(os.path.join(file_base, 'lc_%06i.fits'%k))
+                bar.update()
+            tar.close()
+
+            for k in range(len(self.lcs)):
+                os.remove(os.path.join(file_base, 'lc_%06i.fits'%k))
+                bar.update()
+            os.rmdir(os.path.join(tmpdir, file_base))
+
+        os.chdir(cwd)
+        
+    def filter_lcs(self, filterfunc):
+        """Create new LightcurveCollection with subset of LCs
+        filterfunc is a function of the lightcurve with
+        the whole stats dictionary and the lc's index
+        as kwargs 'stats' and 'k', respectively
+        expected return values are true or false
+        """
+        lcs = LightcurveCollection(empty=True)
+        
+        for k, lc_data in enumerate(self.lcs):
+            meta = self.meta[k]
+            lc = Table(data=self.lc_data,
+                       meta={key: v for key, v in zip(meta.dtype.names, meta)})
+            if filterfunc(lc, stats=self.stats, k=k):
+                lcs.add(lc)
+
+        return lcs
+
+    def filter_epochs(self, filterfunc):
+        """Create new LightcurveCollection, where each lc
+        is filtered using filterfunc which takes the lc as an argument
+        If the lc is empty due to filtering, it is not added
+        to the collection
+        """
+        lcs = LightcurveCollection(empty=True)
+        
+        for k, lc_data in enumerate(self.lcs):
+            meta = self.meta[k]
+            lc = Table(data=self.lc_data,
+                       meta={key: v for key, v in zip(meta.dtype.names, meta)})
+            lc_filt = filterfunc(lc)
+            if len(lc) > 0:
+                lcs.add(lc)
+
+        return lcs
+
     # ---------------------- #
     # - Get Methods        - #
     # ---------------------- #
@@ -1191,6 +1289,20 @@ class LightcurveCollection( BaseObject ):
     def stats(self):
         """"""
         return self._derived_properties["stats"]
+
+    @property
+    def tab_stats(self):
+        """"""
+        tmp = {k: v for k, v in self.stats.items()
+               if k not in ['p_binned', 'mag_max']}
+        for k, v in self.stats['mag_max'].items():
+            tmp['mag_max_%s'%k] = v
+
+        return Table(tmp)
+
+    def get_tab_p_binned(self, key):
+        """"""
+        return Table(self.stats['p_binned'][key])
 
 # ========================= #
 # = Lightcurve statistics = #
