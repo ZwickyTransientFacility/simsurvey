@@ -1167,11 +1167,17 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def lightcurve_Ia_hsiao_basic(self, redshifts, model,
                                   mag=(-19.3, 0.1),
                                   r_v=2., ebv_rate=0.11,
+                                  alpha=1.3,
                                   **kwargs):
         """
         """
-        return lightcurve_scaled_to_mag(redshifts, model, mag=mag,
-                                            r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+        out = lightcurve_scaled_to_mag(redshifts, model, mag=mag,
+                                       r_v=r_v, ebv_rate=ebv_rate, **kwargs)
+
+        out['s'] = np.random.normal(1., 0.1, len(redshifts))
+        out['amplitude'] *= 10 ** (0.4 * alpha * (out['s'] - 1))
+
+        return out
 
     # ----------------- #
     # - CC LC         - #
