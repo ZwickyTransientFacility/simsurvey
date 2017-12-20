@@ -978,22 +978,17 @@ class LightcurveCollection( BaseObject ):
             tar.add(fname)
             os.remove(fname)
 
-        with get_progressbar(3*len(self.lcs), notebook=notebook) as bar:
+        with get_progressbar(len(self.lcs), notebook=notebook) as bar:
             for k, lc_data in enumerate(self.lcs):
                 meta = self.meta[k]
                 lc = Table(data=lc_data,
                            meta={key: v for key, v in zip(meta.dtype.names, meta)})
                 lc.write(os.path.join(file_base, 'lc_%06i.fits'%k))
-                bar.update()
-
-            for k in range(len(self.lcs)):
                 tar.add(os.path.join(file_base, 'lc_%06i.fits'%k))
-                bar.update()
-            tar.close()
-
-            for k in range(len(self.lcs)):
                 os.remove(os.path.join(file_base, 'lc_%06i.fits'%k))
                 bar.update()
+
+            tar.close()
             os.rmdir(os.path.join(tmpdir, file_base))
 
         os.chdir(cwd)
