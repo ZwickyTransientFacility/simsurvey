@@ -1103,7 +1103,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     # - IIP snana basic
     # - SpectralIndexSource
 
-    def lightcurve_Ia_salt2_basic(self, redshifts, model=None,
+    def lightcurve_Ia_salt2_basic(self, redshifts, model,
                                   color_mean=0, color_sigma=0.1,
                                   stretch_mean=0, stretch_sigma=1,
                                   alpha=0.13, beta=3.,
@@ -1117,17 +1117,17 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             
        
         for z, x1_, c_ in zip(redshifts, x1, c):
-            self.model.set(z=z, x1=x1_, c=c_)
+            model.set(z=z, x1=x1_, c=c_)
             mabs = normal(-19.3, 0.1)
             mabs -= alpha*x1_ - beta*c_            
-            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
-            x0.append(self.model.get('x0'))
+            model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
+            x0.append(model.get('x0'))
         
         return {'x0': np.array(x0),
                 'x1': x1,
                 'c': c}
     
-    def lightcurve_Ia_salt2_realistic(self, redshifts, model=None,
+    def lightcurve_Ia_salt2_realistic(self, redshifts, model,
                                       mabs_mean=-19.3, mabs_sigma=0.12,
                                       color_mean=0, color_sigma=0.1,
                                       stretch_mean=(0.5, -1), stretch_sigma=(1, 1),
@@ -1152,11 +1152,11 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
         x0 = []
         for k,z in enumerate(redshifts):
-            self.model.set(z=z, x1=x1[k], c=c[k])
+            model.set(z=z, x1=x1[k], c=c[k])
             mabs = normal(mabs_mean, mabs_sigma)
             mabs -= alpha*x1[k] - beta*c[k]
-            self.model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
-            x0.append(self.model.get('x0'))
+            model.set_source_peakabsmag(mabs, 'bessellb', 'ab', cosmo=cosmo)
+            x0.append(model.get('x0'))
             
         ntransient = len(redshifts)
         
