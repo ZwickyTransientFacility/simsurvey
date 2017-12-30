@@ -1115,7 +1115,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         x1 = normal(stretch_mean, stretch_sigma, ntransient)
         c = normal(color_mean, color_sigma, ntransient)
             
-       
+        x0 = []
         for z, x1_, c_ in zip(redshifts, x1, c):
             model.set(z=z, x1=x1_, c=c_)
             mabs = normal(-19.3, 0.1)
@@ -1160,9 +1160,9 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             
         ntransient = len(redshifts)
         
-        return {'x0':np.array(x0),
-                'x1':np.array(x1),
-                'c':np.array(c)}
+        return {'x0': np.array(x0),
+                'x1': np.array(x1),
+                'c': np.array(c)}
 
     def lightcurve_Ia_hsiao_basic(self, redshifts, model,
                                   mag=(-19.3, 0.1),
