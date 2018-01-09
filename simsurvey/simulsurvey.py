@@ -6,8 +6,9 @@ import warnings
 import numpy as np
 import cPickle
 import tarfile
+import tempfile
 import os
-from copy import copy, deepcopy
+from copy import deepcopy
 from collections import OrderedDict as odict
 from itertools import izip
 
@@ -640,15 +641,15 @@ class SurveyPlan( BaseObject ):
     # - Load Method        - #
     # ---------------------- #
     def load_opsim(self, filename, survey_table='Summary', field_table='Field',
-                   band_dict=None, skybright_key='filtSkyBright', skybright_factor=1.,
-                   default_skybright=22.25, zp=30):
+                   band_dict=None, depth_key='fiveSigmaDepth', depth_factor=5.,
+                   default_depth=20.5, zp=30):
         """
         see https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
         for format description
 
         Currently only the used columns are loaded
 
-        table_name -- name of table in SQLite DB (deafult "ptf" because of 
+        table_name -- name of table in SQLite DB (default "ptf" because of 
                       Eric's example)
         band_dict -- dictionary for converting filter names 
         zp -- zero point for converting sky brightness from mag to flux units
@@ -668,9 +669,10 @@ class SurveyPlan( BaseObject ):
 
             return loaded
 
-        load_keys = ['expMJD', 'filter', 'fieldRA', 'fieldDec', 'fieldID']
-        if skybright_key is not None:
-            load_keys.append(skybright_key)
+        load_keys = ['expMJD', 'filter', 'fieldRA',
+                     'fieldDec', 'fieldID', 'subprogram']
+        if depth_key is not None:
+            load_keys.append(depth_key)
 
         loaded = _fetch(load_keys, survey_table)
         fields = _fetch(['fieldID', 'fieldRA', 'fieldDec'],
@@ -681,15 +683,15 @@ class SurveyPlan( BaseObject ):
         loaded['fieldRA'] /= _d2r
         loaded['fieldDec'] /= _d2r
 
-        if skybright_key is not None:
-            loaded[skybright_key] = np.array([(d if (d is not None) and (d > 0.)
-                                               else default_skybright)
-                                              for d in loaded[skybright_key]])
-            loaded['skynoise'] = 10 ** (-0.4 * (loaded[skybright_key] - zp)) / skybright_factor
+        if depth_key is not None:
+            loaded[depth_key] = np.array([(d if (d is not None) and (d > 0.)
+                                               else default_depth)
+                                              for d in loaded[depth_key]])
+            loaded['skynoise'] = 10 ** (-0.4 * (loaded[depth_key] - zp)) / depth_factor
         else:
             loaded['skynoise'] = np.ones(len(loaded['fieldRA']))
-            loaded['skynoise'] *= 10 ** (-0.4 * (default_skybright - zp)) / skybright_factor
-        loaded['zp'] = [zp for r_ in loaded_['fieldRA']]
+            loaded['skynoise'] *= 10 ** (-0.4 * (default_depth - zp)) / depth_factor
+        loaded['zp'] = [zp for r_ in loaded['fieldRA']]
 
         if band_dict is not None:
             loaded['filter'] = [band_dict[band] for band in loaded['filter']]
@@ -698,7 +700,8 @@ class SurveyPlan( BaseObject ):
 
         self.add_observation(loaded['expMJD'],loaded['filter'],loaded['skynoise'],
                              ra=loaded['fieldRA'],dec=loaded['fieldDec'],
-                             field=loaded['fieldID'])
+                             field=loaded['fieldID'], zp=loaded['zp'],
+                             comment=loaded['subprogram'])
 
         self.set_fields(ra=fields['fieldRA'], dec=fields['fieldDec'],
                         field_id=fields['fieldID'], ccds=self.ccds)
@@ -938,10 +941,11 @@ class LightcurveCollection( BaseObject ):
                       'side': self._side_properties},
                      open(filename, 'w'))
 
-    def save_tar(self, filename, notebook=False, tmpdir='/tmp'):
+    def save_tar(self, filename, notebook=False):
         """
         """
         cwd = os.getcwd()
+        tmpdir = tempfile.mkdtemp('lightcurves')
         file_base = filename.split('/')[-1].split('.')[0]
     
         os.chdir(tmpdir)
@@ -991,6 +995,7 @@ class LightcurveCollection( BaseObject ):
             tar.close()
             os.rmdir(os.path.join(tmpdir, file_base))
 
+        os.rmdir(tmpdir)
         os.chdir(cwd)
         
     def filter_lcs(self, filterfunc):
