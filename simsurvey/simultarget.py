@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 from numpy.random import uniform, normal
 import sncosmo
+import cPickle
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from scipy.stats import truncnorm
@@ -22,7 +23,7 @@ from utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
-__all__ = ["get_transient_generator",
+__all__ = ["get_transient_generator", "load_transient_generator",
            "generate_transients", "generate_lightcurves"]
 
 def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
@@ -41,6 +42,11 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
                               ntransient=ntransient,zrange=zrange,
                               ra_range=ra_range,dec_range=dec_range,
                               **kwargs)
+
+def load_transient_generator(filename):
+    """
+    """
+    return TransientGenerator(load=filename)
 
 def generate_transients(zrange,**kwargs):
     """
@@ -149,13 +155,15 @@ class TransientGenerator( BaseObject ):
         prop_save = ["transient_coverage", "event_coverage"]
         side_save = ["err_mwebv"]
         deri_save = ["simul_parameters", "mwebv", "mwebv_sfd98", 
-                     "lightcurve_parameters"]
+                     "lightcurve_parameters", "has_mwebv_sfd98"]
 
         out = {
             "properties": {k: self._properties[k] for k in prop_save},
-            "side_properties": {k: self._side_properties[k] for k in prop_save},
-            "derived_properties": {k: self._derived_properties[k] for k in prop_save},
+            "side_properties": {k: self._side_properties[k] for k in side_save},
+            "derived_properties": {k: self._derived_properties[k] for k in deri_save},
         }
+        out['properties']['transient_coverage']['lightcurve_prop'] = None
+
         cPickle.dump(out, open(filename, 'w'))
 
     # --------------------------- #
@@ -539,7 +547,8 @@ class TransientGenerator( BaseObject ):
         fundamental ones"""
         # --------------
         # - update the actual simulation
-        self._update_simulation_()        
+        self._update_simulation_()
+        self._update_mwebv_()
 
     def _reset_mwebv_(self):
         self._derived_properties['mwebv_sfd98'] = None
