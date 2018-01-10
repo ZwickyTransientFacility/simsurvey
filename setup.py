@@ -13,14 +13,15 @@ MAINTAINER = 'Ulrich Feindt'
 MAINTAINER_EMAIL = 'ulrich.feindt@fysik.su.se'
 URL = 'https://github.com/MickaelRigault/simsurvey/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/MickaelRigault/simsurvey/tarball/0.3.1'
-VERSION = '0.3.1'
+DOWNLOAD_URL = 'https://github.com/MickaelRigault/simsurvey/tarball/0.4.0'
+VERSION = '0.4.0'
 
 try:
     from setuptools import setup, find_packages
     _has_setuptools = True
 except ImportError:
     from distutils.core import setup
+    _has_setuptools = False
 
 if __name__ == "__main__":
     if _has_setuptools:
