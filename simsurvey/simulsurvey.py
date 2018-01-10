@@ -998,39 +998,19 @@ class LightcurveCollection( BaseObject ):
         os.rmdir(tmpdir)
         os.chdir(cwd)
         
-    def filter_lcs(self, filterfunc):
-        """Create new LightcurveCollection with subset of LCs
-        filterfunc is a function of the lightcurve with
-        the whole stats dictionary and the lc's index
-        as kwargs 'stats' and 'k', respectively
-        expected return values are true or false
-        """
-        lcs = LightcurveCollection(empty=True)
-        
-        for k, lc_data in enumerate(self.lcs):
-            meta = self.meta[k]
-            lc = Table(data=self.lc_data,
-                       meta={key: v for key, v in zip(meta.dtype.names, meta)})
-            if filterfunc(lc, stats=self.stats, k=k):
-                lcs.add(lc)
-
-        return lcs
-
-    def filter_epochs(self, filterfunc):
+    def filter(self, filterfunc):
         """Create new LightcurveCollection, where each lc
         is filtered using filterfunc which takes the lc as an argument
-        If the lc is empty due to filtering, it is not added
+        If the lc is empty due to filtering or None, it is not added
         to the collection
         """
         lcs = LightcurveCollection(empty=True)
         
-        for k, lc_data in enumerate(self.lcs):
-            meta = self.meta[k]
-            lc = Table(data=self.lc_data,
-                       meta={key: v for key, v in zip(meta.dtype.names, meta)})
+        for k in xrange(len(self.lcs)):
+            lc = self._get_lc_(k)
             lc_filt = filterfunc(lc)
-            if len(lc) > 0:
-                lcs.add(lc)
+            if lc_filt is not None and len(lc_filt) > 0:
+                lcs.add(lc_filt)
 
         return lcs
 
@@ -1041,15 +1021,28 @@ class LightcurveCollection( BaseObject ):
         """
         """
         if isinstance(given, slice):
-            return [Table(data=data,
-                          meta={k: v for k, v in zip(meta.dtype.names, meta)})
-                    for data, meta in
-                    zip(self.lcs[given], self.meta[given])]
+            return [self._get_lc_(k) for k in range(len(self.lcs))[given]]
         else:
-            meta = self.meta[given]
-            return Table(data=self.lcs[given],
-                         meta={k: v for k, v in zip(meta.dtype.names, meta)}) 
-            
+            return self._get_lc_(given)
+
+    def _get_lc_(self, k, get_stats=True):
+        """
+        """
+        meta = self.meta[k]
+        lc = Table(data=self.lcs[k],
+                   meta={key: val for key, val in zip(meta.dtype.names, meta)})
+
+        if get_stats:
+            lc.meta['stats'] = {}
+            for key, val in self.stats.items():
+                if key in ['mag_max', 'p_binned']:
+                    lc.meta['stats'][key] = {}
+                    for key2, val2 in val.items():
+                        lc.meta['stats'][key][key2] = val2[k]
+                else:
+                    lc.meta['stats'][key] = val[k]
+        return lc
+
     # ---------------------- #
     # - Add Methods        - #
     # ---------------------- #
