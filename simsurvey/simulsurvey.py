@@ -975,7 +975,7 @@ class LightcurveCollection( BaseObject ):
 
         for k, v in self.stats['p_binned'].items():
             tables.append(Table(v))
-            filenames.append(os.path.join(file_base, 'tab_p_binned_%s.fits'))
+            filenames.append(os.path.join(file_base, 'tab_p_binned_%s.fits'%k))
 
         for tab, fname in zip(tables, filenames):
             tab.write(fname)
