@@ -499,7 +499,7 @@ class SurveyFieldBins( BaseBins ):
 
         if progress_bar:
             try:
-                print "Determining field IDs for all objects"
+                print("Determining field IDs for all objects")
                 gen = get_progressbar(gen, notebook=notebook)
             except ImportError:
                 pass
@@ -531,16 +531,16 @@ class SurveyFieldBins( BaseBins ):
         d_off = np.array(d_off)
 
         fields = [field_id[np.where(bo[:,k])[0]]
-                  for k in xrange(bo.shape[1])]
+                  for k in range(bo.shape[1])]
         r_out = [np.array(r_off[:,k][~np.isnan(r_off[:,k])])
-                 for k in xrange(r_off.shape[1])]
+                 for k in range(r_off.shape[1])]
         d_out = [np.array(d_off[:,k][~np.isnan(d_off[:,k])])
-                 for k in xrange(d_off.shape[1])]
+                 for k in range(d_off.shape[1])]
 
         if self.ccds is not None:
             c = np.array(c)
             ccds = [np.array(c[:,k][c[:,k] >= 0], dtype=int)
-                    for k in xrange(c.shape[1])]
+                    for k in range(c.shape[1])]
             return {'field': fields, 'ra_off': r_out,
                     'dec_off': d_out, 'ccd': ccds}
         return {'field': fields, 'ra_off': r_out, 'dec_off': d_out}
@@ -781,7 +781,7 @@ class SurveyField( BaseObject ):
 
         b = np.array([_f_ccd(r[mask], d[mask], ccd)
                       for ccd in self.ccds])
-        on_ccd = np.array([np.any(b[:,k]) for k in xrange(b.shape[1])])
+        on_ccd = np.array([np.any(b[:,k]) for k in range(b.shape[1])])
         mask[mask] = on_ccd
         n_ccd = -999999999 * np.ones(len(mask), dtype=int)
         n_ccd[mask] = np.array([np.where(b[:,k])[0][0]

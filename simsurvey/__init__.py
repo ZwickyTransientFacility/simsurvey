@@ -3,6 +3,6 @@
 
 __version__ = "0.4.0"
 
-from simultarget import *
-from simulsurvey import *
-from models      import *
+from .simultarget import *
+from .simulsurvey import *
+from .models      import *

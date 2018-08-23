@@ -288,7 +288,7 @@ def skyhist(ax, ra=None, dec=None, values=None, bins=None, steps=None, max_steps
 
     patches = []
     p_idx = []
-    for k in xrange(len(values)):
+    for k in range(len(values)):
         radec_bd = bins.boundary(k, steps=steps, max_stepsize=max_stepsize,
                                  edge=edge)
         for r, d in radec_bd:
@@ -735,7 +735,7 @@ def voronoi_grid(ax,xy):
         simplex = np.asarray(simplex)
         if np.any(simplex < 0):
             i = simplex[simplex >= 0][0]  # finite end Voronoi vertex
-            print i,simplex, simplex[simplex >= 0][0]
+            print(i,simplex, simplex[simplex >= 0][0])
             t = vor.points[pointidx[1]] - vor.points[pointidx[0]]  # tangent
             t /= np.linalg.norm(t)
             n = np.array([-t[1], t[0]])  # normal

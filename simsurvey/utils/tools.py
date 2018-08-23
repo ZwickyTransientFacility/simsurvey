@@ -14,7 +14,7 @@ def kwargs_update(default,**kwargs):
     """
     """
     k = default.copy()
-    for key,val in kwargs.iteritems():
+    for key,val in kwargs.items():
         k[key] = val
         
     return k
@@ -173,7 +173,7 @@ def shape_ajustment(X,Y,model_X,k=4,s=0,
         return Yrebin
     else:
         if verbose:
-            print 'WARNING [shape_adjustment] non-mached shape ... I am fixing that'
+            print('WARNING [shape_adjustment] non-mached shape ... I am fixing that')
 
         YrebinOK = np.empty((len(Yrebin)+1),)
         YrebinOK[1:] = Yrebin

@@ -44,6 +44,6 @@ def speed_test(func):
         for x in xrange(5000):
             results = func(*args, **kwargs)
         t2 = time.time()
-        print '%s took %0.3f ms' % (func.func_name, (t2-t1)*1000.0)
+        print('%s took %0.3f ms' % (func.func_name, (t2-t1)*1000.0))
         return results
     return wrapper

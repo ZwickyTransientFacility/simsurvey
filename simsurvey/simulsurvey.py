@@ -1,16 +1,21 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 
 import warnings
 import numpy as np
-import cPickle
+import pickle
 import tarfile
 import tempfile
 import os
 from copy import deepcopy
 from collections import OrderedDict as odict
-from itertools import izip
+
+try:
+    from itertools import izip
+except ImportError: #Python3.x
+    izip = zip
 
 import sncosmo
 from sncosmo.utils         import dict_to_array
@@ -18,8 +23,8 @@ from astropy.table         import Table, vstack, hstack
 
 from propobject import BaseObject
 
-from utils.tools   import kwargs_update, range_args, range_length, get_progressbar
-from utils.skybins import SurveyField, SurveyFieldBins 
+from .utils.tools   import kwargs_update, range_args, range_length, get_progressbar
+from .utils.skybins import SurveyField, SurveyFieldBins 
 
 _d2r = np.pi/180
 
@@ -91,7 +96,7 @@ class SimulSurvey( BaseObject ):
             raise AttributeError("plan, generator or instrument not set")
 
         lcs = LightcurveCollection(empty=True)
-        gen = izip(xrange(*args),
+        gen = izip(range(*args),
                    self.generator.get_lightcurve_full_param(*args),
                    self._get_observations_(*args))
 
@@ -102,7 +107,7 @@ class SimulSurvey( BaseObject ):
             self._assign_non_field_obs_(progress_bar=True, notebook=notebook)
             
             try:
-                print 'Generating lightcurves'
+                print('Generating lightcurves')
                 ntransient = range_length(*args)
 
                 with get_progressbar(ntransient, notebook=notebook) as bar:
@@ -349,7 +354,7 @@ class SimulSurvey( BaseObject ):
 
         # -----------------------
         # - Let's build the tables
-        for k in xrange(*range_args(self.generator.ntransient, *args)):
+        for k in range(*range_args(self.generator.ntransient, *args)):
             obs = self.plan.observed_on(self.obs_fields[k],
                                         (self.obs_ccds[k]
                                          if self.obs_ccds is not None
@@ -509,14 +514,14 @@ class SimulSurvey( BaseObject ):
             self._derived_properties["non_field_obs_exist"] = True
 
         if self.non_field_obs_exist is False:
-            return [None for k in xrange(self.generator.ntransient)]
+            return [None for k in range(self.generator.ntransient)]
         return self._derived_properties["non_field_obs"]
 
     @property
     def non_field_obs_ccds(self):
         """If the plan contains pointings with field id, prepare a list of those."""
         if self.non_field_obs_exist is False:
-            return [None for k in xrange(self.generator.ntransient)]
+            return [None for k in range(self.generator.ntransient)]
         return self._derived_properties["non_field_obs_ccds"]
         
     @property
@@ -730,7 +735,7 @@ class SurveyPlan( BaseObject ):
 
         if progress_bar and len(gen) > 0:
             try:
-                print "Finding transients observed in custom pointings"
+                print("Finding transients observed in custom pointings")
                 gen = get_progressbar(gen, notebook=notebook)
             except ImportError:
                 pass
@@ -955,9 +960,9 @@ class LightcurveCollection( BaseObject ):
 
         conffile = os.path.join(file_base, 'config')
         f = open(conffile, 'w')
-        print >> f, 'threshold: %.3f' % self.threshold
-        print >> f, 'n_samenight: %i' % self.n_samenight
-        print >> f, 'p_bins:', self.p_bins
+        print('threshold: %.3f' % self.threshold, file=f)
+        print('n_samenight: %i' % self.n_samenight, file=f)
+        print('p_bins:', self.p_bins, file=f)
         f.close()
         tar.add(conffile)
         os.remove(conffile)
@@ -1006,7 +1011,7 @@ class LightcurveCollection( BaseObject ):
         """
         lcs = LightcurveCollection(empty=True)
         
-        for k in xrange(len(self.lcs)):
+        for k in range(len(self.lcs)):
             lc = self._get_lc_(k)
             lc_filt = filterfunc(lc)
             if lc_filt is not None and len(lc_filt) > 0:
