@@ -157,18 +157,16 @@ def simulate_z(NPoints,z_range,z_pdf=None,z_pdf_bins=None):
         elif (np.abs(z_pdf_bins[0] - z_range[0]) / z_range[0] > 1e-9 
               or np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9 
               or True in [a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])]):
-            print np.abs(z_pdf_bins[0] - z_range[0]) / z_range[0] > 1e-9 
-            print np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9 
-            print [a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])]
-            print True in [a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])]
+            print(np.abs(z_pdf_bins[0] - z_range[0]) / z_range[0] > 1e-9)
+            print(np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9) 
+            print([a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])])
+            print(True in [a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])])
             raise ValueError('Invalid z_pdf_bins')
         else:
             z_pdf_bins = np.array(z_pdf_bins)
 
     widths = z_pdf_bins[1:]-z_pdf_bins[:-1]
     z_pdf = np.array(z_pdf,dtype=float)/np.sum(np.array(z_pdf*widths))
-    #print np.sum(z_pdf*widths)
-    #print z_pdf
 
     if len(z_pdf) > 1:
         z_cdf = np.cumsum(z_pdf*widths)

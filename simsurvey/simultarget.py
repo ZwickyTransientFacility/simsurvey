@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from numpy.random import uniform, normal
 import sncosmo
-import cPickle
+import pickle
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from scipy.stats import truncnorm
@@ -16,10 +16,10 @@ from astropy.cosmology import Planck15
 
 from propobject import BaseObject
 
-from models import ExpandingBlackBodySource#, SpectralIndexSource, MultiSource
+from .models import ExpandingBlackBodySource#, SpectralIndexSource, MultiSource
 
-from utils       import random
-from utils.tools import kwargs_extract, kwargs_update, range_args
+from .utils       import random
+from .utils.tools import kwargs_extract, kwargs_update, range_args
 
 _d2r = np.pi / 180
 
@@ -270,29 +270,6 @@ class TransientGenerator( BaseObject ):
     # --------------------------- #
     # - Get Methods             - #
     # --------------------------- #
-    # def get_transients(self,index=None,pass_mwebv=True):
-    #     """loops over the transientsources to load the transients objects.
-    #     This method could be a bit slow..."""
-    #     return [get_target(**s) for s in self.get_transientsource(index, pass_mwebv)]
-
-    # def get_transientsource(self,index=None,pass_mwebv=True):
-    #     """dictionary containing the fundamental parameters that enable to
-    #     load the transient objects"""
-    #     if index is not None and "__iter__" not in dir(index):
-    #         index = [index]
-
-    #     # If self.mwebv remains None, something went wrong and
-    #     # pass_mwebmb is set to None. This should already have
-    #     # resulted in a warning, no need for another one.
-    #     if pass_mwebv and self.mwebv is None:
-    #         pass_mwebv = False
-
-    #     return [dict(name="simul%d"%i,ra=self.ra[i],dec=self.dec[i], zcmb=self.zcmb[i],
-    #                  mjd=self.mjd[i],type_=self.transient_coverage["transienttype"],
-    #                  lightcurve=None,
-    #                  forced_mwebv=(self.mwebv[i] if pass_mwebv else None))
-    #             for i in xrange(self.ntransient) if index is None or i in index]
-
     def get_bandmag(self, band='bessellb', magsys='vega', t=0):
         """
         Returns the magnitudes of transient according to lightcurve parameters
@@ -313,7 +290,7 @@ class TransientGenerator( BaseObject ):
     def get_lightcurve_full_param(self, *args, **kwargs):
         """Transient lightcurve parameters"""
         full_out = kwargs.get("full_out", True)
-        for i in xrange(*range_args(self.ntransient, *args)):
+        for i in range(*range_args(self.ntransient, *args)):
             out = dict(z=self.zcmb[i], t0=self.mjd[i],
                        mwebv=(self.mwebv[i]
                               if self.has_mwebv_sfd98 else 0),
@@ -1399,7 +1376,7 @@ def zdist_fixed_nsim(nsim, zmin, zmax,
     snrate_cdf = vol_snrate / vol_snrate[-1]
     snrate_ppf = Spline1d(snrate_cdf, z_binedges, k=1)
 
-    for i in xrange(nsim):
+    for i in range(nsim):
         yield float(snrate_ppf(uniform()))
 
 def get_snana_filenames(sntype):

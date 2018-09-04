@@ -1,9 +1,9 @@
 #
 # Util tools for the astrobject classes.
 #
-import tools
-import decorators
-import random
-import skybins
+from . import tools
+from . import decorators
+from . import random
+from . import skybins
 
 __all__ = ['tools', 'decorators', 'random', 'skybins']

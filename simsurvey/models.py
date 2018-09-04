@@ -5,10 +5,14 @@
 
 import warnings
 import numpy as np
-import cPickle
+import pickle
 from copy import deepcopy
 from collections import OrderedDict as odict
-from itertools import izip
+
+try:
+    from itertools import izip
+except ImportError: #Python3.x
+    izip = zip
 
 from scipy.constants import speed_of_light, Planck, Boltzmann
 from scipy.interpolate import (InterpolatedUnivariateSpline as Spline1d,
