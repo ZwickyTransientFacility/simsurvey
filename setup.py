@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (C) 2015 SNSurvey Developers
+# Copyright (C) 2015-18 simsurvey Developers
 
 DESCRIPTION = "simsurvey: Basic tools for simulating astronomical surveys"
 LONG_DESCRIPTION = """\
