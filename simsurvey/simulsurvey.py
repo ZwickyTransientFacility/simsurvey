@@ -355,7 +355,9 @@ class SimulSurvey( BaseObject ):
         # -----------------------
         # - Let's build the tables
         for k in range(*range_args(self.generator.ntransient, *args)):
-            obs = self.plan.observed_on(self.obs_fields[k],
+            obs = self.plan.observed_on((self.obs_fields[k]
+                                         if self.obs_fields is not None
+                                         else None),
                                         (self.obs_ccds[k]
                                          if self.obs_ccds is not None
                                          else None),
@@ -742,10 +744,14 @@ class SurveyPlan( BaseObject ):
             except IOError:
                 pass
 
+        if self.ccds is None:
+            ccd = None
+        else:
+            ccd = True
         for k, obs in enumerate(gen):
             tmp_f = SurveyField(obs["RA"], obs["Dec"], 
                                 self.width, self.height,
-                                ccds=self.fields.ccds)
+                                ccds=self.ccds)
             tmp = tmp_f.coord_in_field(ra, dec)
 
             # Setup output as dictionaries that can be converted to Tables and
@@ -754,21 +760,26 @@ class SurveyPlan( BaseObject ):
                 if type(tmp['field']) is np.bool_:
                     single_coord = True
                     out = np.array([], dtype=int)
-                    ccd = np.array([], dtype=int)
+                    if ccd is not None:
+                        ccd = np.array([], dtype=int)
                 else:
+                    single_coord = False
                     out = [np.array([], dtype=int) for r in ra]
-                    ccd = [np.array([], dtype=int) for r in ra]
+                    if ccd is not None:
+                        ccd = [np.array([], dtype=int) for r in ra]
 
             if single_coord:
                 if tmp['field']:
                     observed = True
                     out = np.append(out, [k])
-                    ccd = np.append(ccd, [tmp['ccd']])
+                    if ccd is not None:
+                        ccd = np.append(ccd, [tmp['ccd']])
             else:
                 for l in np.where(tmp['field'])[0]:
                     observed = True
                     out[l] = np.append(out[l], [k])
-                    ccd[l] = np.append(ccd[l], [tmp['ccd']])
+                    if ccd is not None:
+                        ccd[l] = np.append(ccd[l], [tmp['ccd']])
 
         if observed:
             return out, ccd
@@ -812,10 +823,11 @@ class SurveyPlan( BaseObject ):
             out['comment'].extend(self.pointings['comment'][mask][non_field])
             out['skynoise'].extend(self.pointings['skynoise']
                                    [mask][non_field].quantity.value)
-            out['field'].extend(np.nan*np.ones(np.sum(mask), dtype=int))
+            out['field'].extend(np.nan*np.ones(np.sum(mask), dtype=int)[non_field])
             if 'ccd' in out.keys():
                 out['ccd'].extend(non_field_ccds[k][mask])
 
+        #print(out)
         table = Table(out, meta={})
         idx = np.argsort(table['time'])
         if mjd_range is None:
