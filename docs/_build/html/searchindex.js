@@ -1,0 +1,1 @@
+Search.setIndex({docnames:["index"],envversion:53,filenames:["index.rst"],objects:{},objnames:{},objtypes:{},terms:{"transient":0,astronom:0,index:0,librari:0,lightcurv:0,modul:0,obtain:0,page:0,python:0,search:0,simul:0,survei:0},titles:["Welcome to simsurvey\u2019s documentation!"],titleterms:{document:0,indic:0,simsurvei:0,tabl:0,welcom:0}})
