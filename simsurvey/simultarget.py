@@ -140,7 +140,7 @@ class TransientGenerator( BaseObject ):
     def load(self, filename):
         """
         """
-        loaded = cPickle.load(open(filename))
+        loaded = pickle.load(open(filename, 'rb'))
 
         for k, v in loaded['properties'].items():
             self._properties[k] = v
@@ -164,7 +164,7 @@ class TransientGenerator( BaseObject ):
         }
         out['properties']['transient_coverage']['lightcurve_prop'] = None
 
-        cPickle.dump(out, open(filename, 'w'))
+        pickle.dump(out, open(filename, 'wb'))
 
     # --------------------------- #
     # - Set Methods             - #

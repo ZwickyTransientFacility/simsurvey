@@ -938,7 +938,7 @@ class LightcurveCollection( BaseObject ):
     def load(self, filename):
         """
         """
-        loaded = cPickle.load(open(filename))
+        loaded = pickle.load(open(filename, 'rb'))
         self._properties['lcs'] = loaded['lcs']
         self._properties['meta'] = loaded['meta']
         if 'meta_rejected' in loaded.keys():
@@ -951,12 +951,12 @@ class LightcurveCollection( BaseObject ):
     def save(self, filename):
         """
         """
-        cPickle.dump({'lcs': self._properties["lcs"],
-                      'meta': self._properties["meta"],
-                      'meta_rejected': self._properties["meta_rejected"],
-                      'stats': self._derived_properties["stats"],
-                      'side': self._side_properties},
-                     open(filename, 'w'))
+        pickle.dump({'lcs': self._properties["lcs"],
+                     'meta': self._properties["meta"],
+                     'meta_rejected': self._properties["meta_rejected"],
+                     'stats': self._derived_properties["stats"],
+                     'side': self._side_properties},
+                    open(filename, 'wb'))
 
     def save_tar(self, filename, notebook=False):
         """
