@@ -154,7 +154,7 @@ class TransientGenerator( BaseObject ):
         """
         """
         prop_save = ["transient_coverage", "event_coverage"]
-        side_save = ["err_mwebv"]
+        side_save = ["err_mwebv", "apply_mwebv"]
         deri_save = ["simul_parameters", "mwebv", "mwebv_sfd98", 
                      "lightcurve_parameters", "has_mwebv_sfd98"]
 
@@ -875,7 +875,7 @@ class RateGenerator( _PropertyGenerator_ ):
         More realistic value for low-z than sncosmo default
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 3.e-5
+        return 3.e-5 * (1 + z)
 
     
     def rate_Ia_basiclow(self,z):
@@ -891,21 +891,21 @@ class RateGenerator( _PropertyGenerator_ ):
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 2.25e-5
+        return 2.25e-5 * (1 + z)
 
     def rate_IIn_basic(self,z):
         """
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 7.5e-6
+        return 7.5e-6 * (1 + z)
 
     def rate_IIP_basic(self,z):
         """
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 1.2e-4
+        return 1.2e-4 * (1 + z)
 
     # ========================== #
     # = *** Rates              = #
@@ -984,12 +984,6 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     # ============================ #
     # = Model definitions        = #
     # ============================ #
-    # Models to be implemented
-    # - Ibc snana 
-    # - IIn snana 
-    # - IIP snana 
-    # - SpectralIndexSource
-    # - ExpandingBlackBodySource
 
     def model_Ia_salt2(self):
         """
