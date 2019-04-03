@@ -552,8 +552,9 @@ class SurveyPlan( BaseObject ):
     DERIVED_PROPERTIES = []
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, zp=None, comment=None, width=7.295, height=7.465,
-                 fields=None, empty=False, load_opsim=None, **kwargs):
+                 obs_field=None, obs_ccd=None, zp=None, comment=None,
+                 width=7.295, height=7.465, fields=None, empty=False,
+                 load_opsim=None, **kwargs):
         """
         Parameters:
         ----------
@@ -565,12 +566,12 @@ class SurveyPlan( BaseObject ):
             return
 
         self.create(time=time,ra=ra,dec=dec,band=band,skynoise=skynoise,
-                    obs_field=obs_field, zp=zp, comment=comment,
+                    obs_field=obs_field, obs_ccd=obs_ccd, zp=zp, comment=comment,
                     width=width, height=height, fields=fields,
                     load_opsim=load_opsim, **kwargs)
 
     def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-               obs_field=None, zp=None, comment=None,
+               obs_field=None, obs_ccd=None, zp=None, comment=None,
                width=7.295, height=7.465, fields=None,
                load_opsim=None, **kwargs):
         """
@@ -584,7 +585,8 @@ class SurveyPlan( BaseObject ):
 
         if load_opsim is None:
             self.add_observation(time, band, skynoise, ra=ra, dec=dec,
-                                 zp=zp, comment=comment, field=obs_field)
+                                 zp=zp, comment=comment, field=obs_field,
+                                 ccd=obs_ccd)
         else:
             self.load_opsim(load_opsim, **kwargs)
 
@@ -614,7 +616,7 @@ class SurveyPlan( BaseObject ):
         #     self._update_field_radec()
 
     def add_observation(self, time, band, skynoise, ra=None, dec=None, field=None,
-                        zp=None, comment=None):
+                        ccd=None, zp=None, comment=None):
         """
         """
         if ra is None and dec is None and field is None:
@@ -631,12 +633,14 @@ class SurveyPlan( BaseObject ):
 
         if zp is None:
             zp = np.array([np.nan for r in ra])
+        if ccd is None:
+            ccd = np.array([np.nan for r in ra])
         if comment is None:
             comment = np.array(['' for r in ra])
 
-        new_obs = Table(data=[time, band, zp, skynoise, ra, dec, field, comment],
+        new_obs = Table(data=[time, band, zp, skynoise, ra, dec, field, ccd, comment],
                         names=['time', 'band', 'zp', 'skynoise',
-                               'RA', 'Dec', 'field', 'comment'])
+                               'RA', 'Dec', 'field', 'ccd', 'comment'])
 
         if self._properties['pointings'] is None:
             self._properties['pointings'] = new_obs
@@ -769,13 +773,20 @@ class SurveyPlan( BaseObject ):
                         ccd = [np.array([], dtype=int) for r in ra]
 
             if single_coord:
-                if tmp['field']:
+                add = False
+                if (tmp['field'] and
+                    (np.isnan(obs['ccd']) or
+                     (not np.isnan(obs['ccd']) and tmp['ccd'] == obs['ccd']))):
                     observed = True
                     out = np.append(out, [k])
                     if ccd is not None:
                         ccd = np.append(ccd, [tmp['ccd']])
+                        
             else:
-                for l in np.where(tmp['field'])[0]:
+                mask = tmp['field']
+                if not np.isnan(obs['ccd']):
+                    mask = mask & (tmp['ccd'] == obs['ccd'])
+                for l in np.where(mask)[0]:
                     observed = True
                     out[l] = np.append(out[l], [k])
                     if ccd is not None:
@@ -805,6 +816,11 @@ class SurveyPlan( BaseObject ):
         if fields is not None:
             for k, l in enumerate(fields):
                 mask = (self.pointings['field'] == l)
+                mask2 = np.isnan(self.pointings['ccd'])
+                if ccds is not None and np.any(~mask2):
+                    mask3 = (self.pointings['ccd'] == ccds[k])
+                    mask = mask & (mask2 | mask3)
+                                  
                 out['time'].extend(self.pointings['time'][mask].quantity.value)
                 out['band'].extend(self.pointings['band'][mask])
                 out['zp'].extend(self.pointings['zp'][mask])
@@ -889,10 +905,10 @@ class LightcurveCollection( BaseObject ):
     __nature__ = "LightcurveCollection"
 
     PROPERTIES         = ['lcs', 'meta', 'meta_rejected']
-    SIDE_PROPERTIES    = ['threshold', 'n_samenight', 'p_bins']
+    SIDE_PROPERTIES    = ['threshold', 'n_det', 'p_bins']
     DERIVED_PROPERTIES = ['stats']
 
-    def __init__(self,  threshold=5., n_samenight=2,
+    def __init__(self,  threshold=5., n_det=2,
                  p_bins=np.arange(-30, 71, 5), empty=False,
                  **kwargs):
         """
@@ -903,7 +919,7 @@ class LightcurveCollection( BaseObject ):
         """
         self.__build__()
         self.set_threshold(threshold)
-        self.set_n_samenight(n_samenight)
+        self.set_n_det(n_det)
         self.set_p_bins(p_bins)
         self._prep_stats_()
 
@@ -973,7 +989,7 @@ class LightcurveCollection( BaseObject ):
         conffile = os.path.join(file_base, 'config')
         f = open(conffile, 'w')
         print('threshold: %.3f' % self.threshold, file=f)
-        print('n_samenight: %i' % self.n_samenight, file=f)
+        print('n_det: %i' % self.n_det, file=f)
         print('p_bins:', self.p_bins, file=f)
         f.close()
         tar.add(conffile)
@@ -1142,7 +1158,7 @@ class LightcurveCollection( BaseObject ):
         """
         """
         p0, p1, dt = get_p_det_last(lc, thr=self.threshold,
-                                    n_samenight=self.n_samenight)
+                                    n_det=self.n_det)
         if p0 < 1e11 and p1 > -1e11:
             self._derived_properties['stats']['p_det'] = np.append(
                 self._derived_properties['stats']['p_det'], p0
@@ -1276,14 +1292,14 @@ class LightcurveCollection( BaseObject ):
         self._side_properties["threshold"] = threshold
 
     @property
-    def n_samenight(self):
+    def n_det(self):
         """"""
-        return self._side_properties["n_samenight"]
+        return self._side_properties["n_det"]
 
-    def set_n_samenight(self, n_samenight):
+    def set_n_det(self, n_det):
         """
         """
-        self._side_properties["n_samenight"] = n_samenight
+        self._side_properties["n_det"] = n_det
 
     @property
     def p_bins(self):
@@ -1317,26 +1333,18 @@ class LightcurveCollection( BaseObject ):
 # ========================= #
 # = Lightcurve statistics = #
 # ========================= #
-def get_p_det_last(lc, thr=5., n_samenight=2):
+def get_p_det_last(lc, thr=5., n_det=2):
     """
     """
     mask_det = lc['flux']/lc['fluxerr'] > thr
-    idx_nights = identify_nights(lc['time'])
 
-    if np.sum(mask_det) > 1:
-        mult_det = [k_ for k_, idx_ in enumerate(idx_nights)
-                    if np.sum(mask_det[idx_]) >= n_samenight]
-        if len(mult_det) > 0:
-            k__ = idx_nights[mult_det[0]][mask_det[idx_nights[mult_det[0]]]]
-            p0 = lc['time'][k__][1] - lc.meta['t0']
-            if k__[0] > 0:
-                dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
-            else:
-                dt = 1e12
+    if np.sum(mask_det) > n_det:
+        k__ = np.where(mask_det)[0]
+        p0 = lc['time'][k__][n_det-1] - lc.meta['t0']
+        if k__[0] > 0:
+            dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
         else:
-            p0 = 1e12
-            dt = 1e12
-            
+            dt = 1e12            
         p1 = lc['time'].max() - lc.meta['t0']
     else:
         p0 = 1e12
@@ -1369,6 +1377,7 @@ def get_lc_max(lc, band):
     if len(lc_b) > 0:
         max_flux = np.max(lc_b['flux'])
         zp = lc_b['zp'][lc_b['flux'] == max_flux]
-        return -2.5 * np.log10(max_flux) + zp
-    else:
-        return 99.
+        if max_flux > 0:
+            return -2.5 * np.log10(max_flux) + zp
+            
+    return 99.

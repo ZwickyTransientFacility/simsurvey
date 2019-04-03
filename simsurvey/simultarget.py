@@ -58,7 +58,7 @@ def generate_transients(zrange,**kwargs):
     """
     return get_transient_generator(zrange,**kwargs).transients
 
-def generate_lightcurves(zrange, obs, **kwargs):
+def generate_lightcurves(zrange, obs, trim_observations=True, **kwargs):
     """
     This module calls get_transient_generator to create the
     TransientGenerator object and then generates lightcurves based
@@ -68,7 +68,7 @@ def generate_lightcurves(zrange, obs, **kwargs):
     """
     tr =  get_transient_generator(zrange,**kwargs)
 
-    return tr.get_lightcurves(obs)
+    return tr.get_lightcurves(obs, trim_observations=trim_observations)
 
 
 #######################################
@@ -83,7 +83,7 @@ class TransientGenerator( BaseObject ):
 
     PROPERTIES         = ["transient_coverage",
                           "event_coverage"]
-    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv"]
+    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv", "apply_mwebv"]
     DERIVED_PROPERTIES = ["simul_parameters", "mwebv", "mwebv_sfd98", 
                           "has_mwebv_sfd98", "lightcurve_parameters"]
 
@@ -99,7 +99,7 @@ class TransientGenerator( BaseObject ):
     def create(self, zrange=(0.0, 0.2), ratekind="basic", ratefunc=None,
                ntransient=None, transient=None, template=None, load=False,
                mjd_range=(57754.0,58849.0),
-               ra_range=(0,360), dec_range=(-90,90),
+               ra_range=(0,360), dec_range=(-90,90), apply_mwebv=True,
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01):
         """
         """
@@ -114,7 +114,8 @@ class TransientGenerator( BaseObject ):
             transientprop = {}
 
         self.set_sfd98_dir(sfd98_dir)
-
+        self.set_apply_mwebv(apply_mwebv)
+        
         if not load:
             self.set_event_parameters(update=False,
                                       **{"ra_range":ra_range, "dec_range":dec_range,
@@ -153,7 +154,7 @@ class TransientGenerator( BaseObject ):
         """
         """
         prop_save = ["transient_coverage", "event_coverage"]
-        side_save = ["err_mwebv"]
+        side_save = ["err_mwebv", "apply_mwebv"]
         deri_save = ["simul_parameters", "mwebv", "mwebv_sfd98", 
                      "lightcurve_parameters", "has_mwebv_sfd98"]
 
@@ -292,10 +293,14 @@ class TransientGenerator( BaseObject ):
         full_out = kwargs.get("full_out", True)
         for i in range(*range_args(self.ntransient, *args)):
             out = dict(z=self.zcmb[i], t0=self.mjd[i],
-                       mwebv=(self.mwebv[i]
-                              if self.has_mwebv_sfd98 else 0),
                        **{p: v[i] for p, v in self.lightcurve.items()})
 
+            if self.apply_mwebv:
+                if self.has_mwebv_sfd98:
+                    out["mwebv"] = self.mwebv[i]
+                else:
+                    out["mwebv"] = 0
+                
             if full_out:
                 out["ra"] = self.ra[i]
                 out["dec"] = self.dec[i]
@@ -306,11 +311,12 @@ class TransientGenerator( BaseObject ):
 
             yield out
 
-    def get_lightcurves(self, obs, **kwargs):
+    def get_lightcurves(self, obs, trim_observations=True, **kwargs):
         """Realize lightcurves based on the randomized lightcurve parameters
         and a single set of observations"""
         params = self.get_lightcurve_full_param(full_out=False)
-        return sncosmo.realize_lcs(obs, self.model, params, **kwargs)
+        return sncosmo.realize_lcs(obs, self.model, params,
+                                   trim_observations=trim_observations, **kwargs)
 
     # --------------------------- #
     # - Plots Methods           - #
@@ -718,11 +724,21 @@ class TransientGenerator( BaseObject ):
         # if model.__class__ is not sncosmo.models.Model:
         #     raise TypeError("model must be sncosmo.model.Model")
 
-        if "mwebv" not in model.param_names:
+        if "mwebv" not in model.param_names and self.apply_mwebv:
             model.add_effect(sncosmo.CCM89Dust(), 'mw', 'obs')
 
         self._side_properties["model"] = model
 
+    @property
+    def apply_mwebv(self):
+        """Option to switch of MW dust completely (need at wavelengths > 3.3 micron)"""
+        return self._side_properties["apply_mwebv"]
+
+    def set_apply_mwebv(self, apply_mwebv):
+        """
+        """
+        self._side_properties["apply_mwebv"] = apply_mwebv
+        
     @property
     def err_mwebv(self):
         """Assumed error of dustmap; will be applied to lightcurve creation"""
@@ -859,7 +875,7 @@ class RateGenerator( _PropertyGenerator_ ):
         More realistic value for low-z than sncosmo default
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 3.e-5
+        return 3.e-5 * (1 + z)
 
     
     def rate_Ia_basiclow(self,z):
@@ -875,21 +891,21 @@ class RateGenerator( _PropertyGenerator_ ):
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 2.25e-5
+        return 2.25e-5 * (1 + z)
 
     def rate_IIn_basic(self,z):
         """
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 7.5e-6
+        return 7.5e-6 * (1 + z)
 
     def rate_IIP_basic(self,z):
         """
         [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
-        return 1.2e-4
+        return 1.2e-4 * (1 + z)
 
     # ========================== #
     # = *** Rates              = #
@@ -968,12 +984,6 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     # ============================ #
     # = Model definitions        = #
     # ============================ #
-    # Models to be implemented
-    # - Ibc snana 
-    # - IIn snana 
-    # - IIP snana 
-    # - SpectralIndexSource
-    # - ExpandingBlackBodySource
 
     def model_Ia_salt2(self):
         """
@@ -1015,7 +1025,14 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def model_IIn_nugent(self):
         """
         """
-        return sncosmo.Model(source='nugent-sn2n',
+        sncosmo.get_source('nugent-sn2n', version='2.1')
+        p, w, f = sncosmo.read_griddata_ascii(
+            os.path.join(sncosmo.builtins.get_cache_dir(),
+                         'sncosmo/models/nugent/sn2n_flux.v2.1.dat')
+        )
+        mask = (p < 150)
+
+        return sncosmo.Model(source=sncosmo.TimeSeriesSource(p[mask], w, f[mask]),
                              effects=[sncosmo.CCM89Dust()],
                              effect_names=['host'],
                              effect_frames=['rest'])
@@ -1030,7 +1047,14 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def model_IIP_nugent(self):
         """
         """
-        return sncosmo.Model(source='nugent-sn2p',
+        sncosmo.get_source('nugent-sn2p', version='1.2')
+        p, w, f = sncosmo.read_griddata_ascii(
+            os.path.join(sncosmo.builtins.get_cache_dir(),
+                         'sncosmo/models/nugent/sn2p_flux.v1.2.dat')
+        )
+        mask = (p < 130)
+
+        return sncosmo.Model(source=sncosmo.TimeSeriesSource(p[mask], w, f[mask]),
                              effects=[sncosmo.CCM89Dust()],
                              effect_names=['host'],
                              effect_frames=['rest'])

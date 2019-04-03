@@ -1,7 +1,7 @@
 
 """ Module base on astrobject, sncosmo and astropy to prepare a future survey. """
 
-__version__ = "0.4.4"
+__version__ = "0.5.0"
 
 from .simultarget import *
 from .simulsurvey import *
