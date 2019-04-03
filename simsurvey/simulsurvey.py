@@ -552,7 +552,7 @@ class SurveyPlan( BaseObject ):
     DERIVED_PROPERTIES = []
 
     def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
-                 obs_field=None, obs_ccd,= None, zp=None, comment=None,
+                 obs_field=None, obs_ccd=None, zp=None, comment=None,
                  width=7.295, height=7.465, fields=None, empty=False,
                  load_opsim=None, **kwargs):
         """
@@ -616,7 +616,7 @@ class SurveyPlan( BaseObject ):
         #     self._update_field_radec()
 
     def add_observation(self, time, band, skynoise, ra=None, dec=None, field=None,
-                        zp=None, comment=None):
+                        ccd=None, zp=None, comment=None):
         """
         """
         if ra is None and dec is None and field is None:
@@ -815,10 +815,12 @@ class SurveyPlan( BaseObject ):
 
         if fields is not None:
             for k, l in enumerate(fields):
-                if ccds is None:
-                    mask = (self.pointings['field'] == l)
-                else:
-                    mask = (self.pointings['field'] == l) & self.pointing['ccd'] == ccds[k])
+                mask = (self.pointings['field'] == l)
+                mask2 = np.isnan(self.pointings['ccd'])
+                if ccds is not None and np.any(~mask2):
+                    mask3 = (self.pointings['ccd'] == ccds[k])
+                    mask = mask & (mask2 | mask3)
+                                  
                 out['time'].extend(self.pointings['time'][mask].quantity.value)
                 out['band'].extend(self.pointings['band'][mask])
                 out['zp'].extend(self.pointings['zp'][mask])
@@ -1338,15 +1340,11 @@ def get_p_det_last(lc, thr=5., n_det=2):
 
     if np.sum(mask_det) > n_det:
         k__ = np.where(mask_det)[0]
-            p0 = lc['time'][k__][n_det-1] - lc.meta['t0']
-            if k__[0] > 0:
-                dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
-            else:
-                dt = 1e12
+        p0 = lc['time'][k__][n_det-1] - lc.meta['t0']
+        if k__[0] > 0:
+            dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
         else:
-            p0 = 1e12
-            dt = 1e12
-            
+            dt = 1e12            
         p1 = lc['time'].max() - lc.meta['t0']
     else:
         p0 = 1e12
@@ -1379,6 +1377,7 @@ def get_lc_max(lc, band):
     if len(lc_b) > 0:
         max_flux = np.max(lc_b['flux'])
         zp = lc_b['zp'][lc_b['flux'] == max_flux]
-        return -2.5 * np.log10(max_flux) + zp
-    else:
-        return 99.
+        if max_flux > 0:
+            return -2.5 * np.log10(max_flux) + zp
+            
+    return 99.
