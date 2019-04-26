@@ -199,7 +199,7 @@ class ExpandingBlackBodySource(sncosmo.Source):
     def _flux(self, phase, wave):
         wave = np.array(wave)
         out = [np.pi*blackbody(wave, T=self.temperature(p_))
-               * (self.radius(p_)*6.957e8/(self._parameters[0]*3.0857e24))**2 
+               * (self.radius(p_)/self._parameters[0]*2.25459e-14)**2 
                for p_ in phase]
         
         return np.array(out)
