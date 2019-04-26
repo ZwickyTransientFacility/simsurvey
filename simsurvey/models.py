@@ -159,10 +159,10 @@ class ExpandingBlackBodySource(sncosmo.Source):
             self.param_names_latex.append('R_%i'%k)
 
     def minwave(self):  
-        return 1e-100
+        return 1e2
 
     def maxwave(self):  
-        return 1e100
+        return 1e6
     
     def minphase(self):
         return self._minphase
@@ -198,12 +198,12 @@ class ExpandingBlackBodySource(sncosmo.Source):
     
     def _flux(self, phase, wave):
         wave = np.array(wave)
-        return np.array([blackbody(wave, 
-                                   T=self.temperature(p_),
-                                   R=self.radius(p_),
-                                   d=self._parameters[0]) 
-                         for p_ in phase])
-
+        out = [np.pi*blackbody(wave, T=self.temperature(p_))
+               * (self.radius(p_)/self._parameters[0]*2.25459e-14)**2 
+               for p_ in phase]
+        
+        return np.array(out)
+    
 class SpectralIndexSource(sncosmo.Source):
     """
     """
@@ -269,11 +269,11 @@ class SpectralIndexSource(sncosmo.Source):
 # Auxilary functions                  #
 #                                     #
 #######################################
-def blackbody(wl, T=6e3, R=1., d=1e-5):
+def blackbody(wl, T=6e3):
     # wl in Ångströms
     # T in Kelvin
     # R in solar radii
     # d in Mpc
     # output in erg s^-1 cm^-2 Angstrom^-1
-    B = 1.19104295262e+27 * wl**-5 / (np.exp(1.43877735383e+8 / (wl*T)) - 1)
-    return B * (R*6.957e8 / (d*3.0857e22))**2
+    return 1.19104295262e+27 * wl**-5 / (np.exp(1.43877735383e+8 / (wl*T)) - 1)
+    

@@ -1031,13 +1031,19 @@ class LightcurveCollection( BaseObject ):
         os.rmdir(tmpdir)
         os.chdir(cwd)
         
-    def filter(self, filterfunc):
+    def filter(self, filterfunc, n_det=None, threshold=None):
         """Create new LightcurveCollection, where each lc
         is filtered using filterfunc which takes the lc as an argument
         If the lc is empty due to filtering or None, it is not added
         to the collection
         """
-        lcs = LightcurveCollection(empty=True)
+        if n_det is None:
+            n_det = self.n_det
+
+        if threshold is None:
+            threshold = self.threshold
+        
+        lcs = LightcurveCollection(empty=True, n_det=n_det, threshold=threshold)
         
         for k in range(len(self.lcs)):
             lc = self._get_lc_(k)
