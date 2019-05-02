@@ -29,7 +29,7 @@ def kwargs_extract(default,**kwargs):
     """
     k = default.copy()
     l = {}
-    for key,val in kwargs.iteritems():
+    for key,val in kwargs.items():
         if key in k.keys():
             k[key] = val
         else:
