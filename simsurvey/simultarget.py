@@ -31,12 +31,53 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
                             ntransient=None,
                             **kwargs):
     """
-    This model returns the object that enables to create and change
+    This function returns the object that enables to create and change
     the kind of transient you wish to set in the sky.
 
-    # - HERE COPY PASTE THE TransientGenerator INIT - #
-    # - TO BE DONE
+    Arguments:
+    zrange: [tuple of 2 floats]     redshift range for the simulation
+        
+    ra_range: [tuple of 2 floats]   range of right ascension for transient coordinates
+    
+    dec_range: [tuple of 2 floats]  range of declination for transient coordinates
+    
+    mjd_range: [tuple of 2 floats]  range of the values to be used for the `t0` model
+                                    parameter in units of days (need not be an actual MJD)
+    
+    transient: [str]                specifcy transient type (e.g. 'Ia' or 'custom')
+    
+    template: [str]                 select transient template to be used for sncosmo.Model 
+                                    (e.g. 'salt2')
+    
+    ratekind: [str]                 select built-in volumetric rate for the transient type
+    
+    ratefunc: [func]                use to override built-in rate but instead provide a 
+                                    function of z
+    
+    ntransient: [int]               override number of transient calculated from integrated 
+                                    rate, ratefunc is still used to calculate shape of the 
+                                    redshift distribution
+    
+    transientprop: [dict]           various transient properties to be passed to the randomizer,
+                                    see documentation and examples.        
+    
+    mw_exclusion: [float]           distance from Galactic Plane, for which the coordinates 
+                                    should be excluded in the random generation
+    
+    apply_mwebv: [bool]             flag whether to apply Milky Way extinction to the models
+                                    (default: True)
+    
+    sfd98_dir: [str]                path to the files for sfdmap (need not be set if $SFD_DIR 
+                                    is set)
+    
+    err_mwebv: [float]              level of Gaussian noise to be added to the MW E(B-V) values
+    
+    load: [str]                     load previous TransientGenerator from file (no random 
+                                    parameters wil be generated)
 
+    seed: [int]                     set np.random.seed for repeatability
+                                    (note: this will set the seed globally and thus affect
+                                    code run after generating the random transients)
     """
     return TransientGenerator(ratekind=ratekind,ratefunc=ratefunc,
                               ntransient=ntransient,zrange=zrange,
@@ -44,17 +85,17 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
                               **kwargs)
 
 def load_transient_generator(filename):
-    """
+    """Load previously saved `TransientGenerator` from filename
     """
     return TransientGenerator(load=filename)
 
 def generate_transients(zrange,**kwargs):
     """
-    This module calls get_transient_generator to create the
-    TransientGenerator object and then returns the associated
-    TransientGenerator.transients
+    This function calls get_transient_generator to create the
+    `TransientGenerator` object and then returns the associated
+    `TransientGenerator.transients`
 
-    # - HERE COPY PASTE the transient_generator docstring
+    Arguments as for `get_transient_generator
     """
     return get_transient_generator(zrange,**kwargs).transients
 
@@ -64,7 +105,16 @@ def generate_lightcurves(zrange, obs, trim_observations=True, **kwargs):
     TransientGenerator object and then generates lightcurves based
     on the random transients 
 
-    # - HERE COPY PASTE the transient_generator docstring
+
+    Arguments:
+    zrange: [tuple of 2 floats]   Redshift range for `TransienGenerator`
+
+    obs: [astropy.Table]          Table of observations as for `sncosmo.realize_lcs`
+
+    trim_observations: [bool]     trim the observation epochs outside the model
+                                  definition
+
+    kwargs: as for `get_transient_generator`
     """
     tr =  get_transient_generator(zrange,**kwargs)
 
@@ -88,7 +138,54 @@ class TransientGenerator( BaseObject ):
                           "has_mwebv_sfd98", "lightcurve_parameters"]
 
     def __init__(self, empty=False, **kwargs):
-        """
+        """Main setup of the TransientGenerator
+
+        Arguments:
+        zrange: [tuple of 2 floats]     redshift range for the simulation
+        
+        ra_range: [tuple of 2 floats]   range of right ascension for transient coordinates
+        
+        dec_range: [tuple of 2 floats]  range of declination for transient coordinates
+        
+        mjd_range: [tuple of 2 floats]  range of the values to be used for the `t0` model
+                                        parameter in units of days (need not be an actual MJD)
+        
+        transient: [str]                specifcy transient type (e.g. 'Ia' or 'custom')
+        
+        template: [str]                 select transient template to be used for sncosmo.Model 
+                                        (e.g. 'salt2')
+        
+        ratekind: [str]                 select built-in volumetric rate for the transient type
+        
+        ratefunc: [func]                use to override built-in rate but instead provide a 
+                                        function of z
+        
+        ntransient: [int]               override number of transient calculated from integrated 
+                                        rate, ratefunc is still used to calculate shape of the 
+                                        redshift distribution
+        
+        transientprop: [dict]           various transient properties to be passed to the randomizer,
+                                        see documentation and examples.        
+        
+        mw_exclusion: [float]           distance from Galactic Plane, for which the coordinates 
+                                        should be excluded in the random generation
+        
+        apply_mwebv: [bool]             flag whether to apply Milky Way extinction to the models
+                                        (default: True)
+        
+        sfd98_dir: [str]                path to the files for sfdmap (need not be set if $SFD_DIR 
+                                        is set)
+        
+        err_mwebv: [float]              level of Gaussian noise to be added to the MW E(B-V) values
+        
+        load: [str]                     load previous TransientGenerator from file (no random 
+                                        parameters wil be generated)
+        
+        seed: [int]                     set np.random.seed for repeatability
+                                        (note: this will set the seed globally and thus affect
+                                        code run after generating the random transients)
+
+        empty: [bool]                   Do not process the other arguments
         """
         self.__build__()
         if empty:
@@ -100,21 +197,20 @@ class TransientGenerator( BaseObject ):
                ntransient=None, transient=None, template=None, load=False,
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90), apply_mwebv=True,
-               mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01):
+               mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01,
+               seed+None):
         """
         """
         # == Add the Input Test == #
         #   TO BE DONE
-
-        # *************** #
-        # * Create      * #
-        # *************** #
-        # -- This will be directly used as random.radec inputs
         if transientprop is None:
             transientprop = {}
 
         self.set_sfd98_dir(sfd98_dir)
         self.set_apply_mwebv(apply_mwebv)
+
+        if seed is not None:
+            np.random.seed(seed)
         
         if not load:
             self.set_event_parameters(update=False,
@@ -139,7 +235,7 @@ class TransientGenerator( BaseObject ):
     # = Main Methods            = #
     # =========================== #
     def load(self, filename):
-        """
+        """Load previously saved `TransientGenerator` from filename
         """
         loaded = pickle.load(open(filename, 'rb'))
 
@@ -151,7 +247,7 @@ class TransientGenerator( BaseObject ):
             self._derived_properties[k] = v
 
     def save(self, filename):
-        """
+        """Save this generator to a pkl file
         """
         prop_save = ["transient_coverage", "event_coverage"]
         side_save = ["err_mwebv", "apply_mwebv"]
@@ -195,8 +291,8 @@ class TransientGenerator( BaseObject ):
                                  ntransient=None, update=True,
                                  transient=None,
                                  template=None, **kwargs):
-        """
-        This method will define the transient properties.
+        """This method will define the transient properties and load
+        built-in transient distributions.
         """
         if self._properties["transient_coverage"] is None:
             self._properties["transient_coverage"] = {}
@@ -220,29 +316,20 @@ class TransientGenerator( BaseObject ):
 
         self.set_lightcurve_prop(**kwargs)
 
-        # if "lcmodel" in kwargs.keys():
-        #     self.set_model(kwargs["lcmodel"])
-        #     self.set_lightcurve_prop(model=self.model,**kwargs)
-        # elif "lcsource" in kwargs.keys():
-        #     self.set_lightcurve_prop(source=kwargs["lcsource"],**kwargs)
-        # else:
-        #     self.set_lightcurve_prop(source=kwargs["lcsource"],**kwargs)
-
         if update:
             self._update_()
 
     def set_lightcurve_prop(self, lcmodel=None, lcmodel_prop=None,
                             lcsimul_func='basic', lcsimul_prop=None, **kwargs):
-        """
-        lcsimul_func must be function with redshift and sncosmo.model as arguments
-        lcsimul_prop can be used for options of lcsimul_func
+        """Set lightcurve parameter distributions
+        lcsimul_func must be str or function with redshift and sncosmo.model 
+        as arguments lcsimul_prop can be used for options of lcsimul_func
         """
         if lcmodel_prop is None:
             lcmodel_prop = {}
         if lcsimul_prop is None:
             lcsimul_prop = {}
 
-        # TODO: Try to obtain lcsimul_func first
         if type(lcsimul_func) is str:
             lcsimul_func = LightCurveGenerator().get_lightcurve_func(
                 transient=self.transienttype,
@@ -271,9 +358,14 @@ class TransientGenerator( BaseObject ):
     # --------------------------- #
     # - Get Methods             - #
     # --------------------------- #
-    def get_bandmag(self, band='bessellb', magsys='vega', t=0):
+    def get_bandmag(self, band='sdssg', magsys='ab', t=0):
         """
         Returns the magnitudes of transient according to lightcurve parameters
+        
+        Arguments (see `sncosmo` documentation for more details)
+        band -- [str or `sncosmo.BandPass`] 
+        magsys -- [str or `sncosmo.MagSys`]
+        t -- [float] epoch relative to `t0`
         """
         # Save old params, so you can restore them
         param0 = {name: value for name, value
@@ -289,7 +381,11 @@ class TransientGenerator( BaseObject ):
         return np.array(out)
 
     def get_lightcurve_full_param(self, *args, **kwargs):
-        """Transient lightcurve parameters"""
+        """Yields transient lightcurve parameters one by one
+        args can be start, end, and step as for range()
+        
+        kwargs:
+        full_out -- [bool] return RA, Dec and original MW E(B-V) from SFD98 maps"""
         full_out = kwargs.get("full_out", True)
         for i in range(*range_args(self.ntransient, *args)):
             out = dict(z=self.zcmb[i], t0=self.mjd[i],
@@ -313,7 +409,8 @@ class TransientGenerator( BaseObject ):
 
     def get_lightcurves(self, obs, trim_observations=True, **kwargs):
         """Realize lightcurves based on the randomized lightcurve parameters
-        and a single set of observations"""
+        and a single set of observations, using `sncosmo.realize_lightcurves`,
+        see `sncosmo` documentation for details on obs and other arguments"""
         params = self.get_lightcurve_full_param(full_out=False)
         return sncosmo.realize_lcs(obs, self.model, params,
                                    trim_observations=trim_observations, **kwargs)
@@ -432,7 +529,25 @@ class TransientGenerator( BaseObject ):
 
     def hist_skycoverage(self, ax=None, savefile=None, show=True, 
                          cblabel=r"$N_{SNe}$", **kwargs):
-        """This function draws a sky histogram of the transient coverage"""
+        """This function draws a sky histogram of the transient coverage
+
+        Parameters:
+        -----------
+        ax [matplotlib axis]       This axis must have Mollweide or Hammer projection
+
+        cblabel: [string]          label of the colorbar (if any)
+
+        - output option -
+
+        savefile, show [string, bool] Output options
+        
+        -- kwargs goes to skyhist --
+
+        Returns:
+        --------
+        dict of the plot parameters
+
+        """
         import matplotlib.pyplot as mpl
         from utils.mpladdon import figout, skyhist
         from utils.skyplot import ax_skyplot
@@ -501,6 +616,8 @@ class TransientGenerator( BaseObject ):
             self._derived_properties["simul_parameters"]["lightcurve"] = param 
 
     def _update_mwebv_sfd98_(self):
+        """
+        """
         try:
             import sfdmap
             self._derived_properties["mwebv_sfd98"] = sfdmap.ebv(
@@ -520,13 +637,15 @@ class TransientGenerator( BaseObject ):
             self._derived_properties["has_mwebv_sfd98"] = False
 
     def _update_mwebv_(self):
+        """
+        """
         if self.has_mwebv_sfd98:
             self._derived_properties["mwebv"] = self.mwebv_sfd98.copy()
             off = self.err_mwebv * np.random.randn(self.ntransient)
             self._derived_properties["mwebv"] += off
         
     def _update_(self):
-        """This module create the derived values based on the
+        """This moethod creates the derived values based on the
         fundamental ones"""
         # --------------
         # - update the actual simulation
@@ -534,24 +653,26 @@ class TransientGenerator( BaseObject ):
         self._update_mwebv_()
 
     def _reset_mwebv_(self):
+        """
+        """
         self._derived_properties['mwebv_sfd98'] = None
         self._derived_properties['mwebv'] = None
         
     def _simulate_mjd_(self):
         """
-        Be default, this is a random flat time distribution returning a float
+        By default, this is a random flat time distribution returning a float
         per transient.
-        Simple overwrite this function in a child-class to have more advanced
+        Simply overwrite this function in a child-class to have more advanced
         properties.
-        The Simulated mjd will be stored in transientsources.
+        The simulated mjd will be stored in transientsources.
         """
         return np.random.rand(self.ntransient)*self.timescale + self.mjd_range[0]
 
     # =========================== #
     # = Properties and Settings = #
     # =========================== #
-    def _get_event_property_(self,key):
-        """
+    def _get_event_property_(self, key):
+        """Get transient event coverage properties (e. g. ra_range)
         """
         if self.transient_coverage is None:
             raise AttributeError("'transient_coverage' has not been defined")
@@ -566,26 +687,32 @@ class TransientGenerator( BaseObject ):
     
     @property
     def ra_range(self):
+        """RA range used in simulations"""
         return self._get_event_property_("ra_range")
     
     @property
     def dec_range(self):
+        """Dec range used in simulations"""
         return self._get_event_property_("dec_range")
     
     @property
     def mjd_range(self):
-        """zcmb range used to draw transient"""
+        """Time range used to draw transient"""
         return self._get_event_property_("mjd_range")
+
     # -----------------
     # - Rates
     @property
     def ratefunc(self):
+        """Function of redshift defining the volumetric rate
+        of transients"""
         return self._side_properties["ratefunction"]
 
     # -------------------------------
     # - Derived Transient Properties
     @property
     def timescale(self):
+        """Time scale of the simulated survey in days"""
         return self.mjd_range[1] - self.mjd_range[0]
        
     @property
@@ -595,7 +722,7 @@ class TransientGenerator( BaseObject ):
 
     @property
     def coveredarea(self):
-        """Covered area in degree squared"""
+        """Covered area in square degree"""
         mw_exclusion = self._get_event_property_("mw_exclusion")
         
         # Area in steradians without accounting for MW exclusion
@@ -617,6 +744,7 @@ class TransientGenerator( BaseObject ):
     # - Target Coverage
     @property
     def transient_coverage(self):
+        """settings for transient lightcurve parameter distribtution"""
         if self._properties["transient_coverage"] is None:
             self._properties["transient_coverage"] = {}
         return self._properties["transient_coverage"]
@@ -633,6 +761,7 @@ class TransientGenerator( BaseObject ):
     # - Derived Properties
     @property
     def simul_parameters(self):
+        """dictionary of simulated transient lightcurve parameters"""
         if self._derived_properties["simul_parameters"] is None:
             self._derived_properties["simul_parameters"] = {}
         return self._derived_properties["simul_parameters"]
@@ -735,7 +864,7 @@ class TransientGenerator( BaseObject ):
         return self._side_properties["apply_mwebv"]
 
     def set_apply_mwebv(self, apply_mwebv):
-        """
+        """Set whether MW extinction should be applied to the 
         """
         self._side_properties["apply_mwebv"] = apply_mwebv
         
@@ -745,7 +874,7 @@ class TransientGenerator( BaseObject ):
         return self._properties["err_mwebv"]
 
     def set_err_mwebv(self, err):
-        """
+        """Set assumed error of dustmap 
         """
         self._properties['err_mwebv'] = err
 
@@ -818,7 +947,7 @@ class _PropertyGenerator_(BaseObject):
     
 class RateGenerator( _PropertyGenerator_ ):
     """
-    This follows the SN cosmo ratefunc
+    This follows the SN cosmo ratefunc prescription
     
     ratefunc : callable
         A callable that accepts a single float (redshift) and returns the
@@ -888,21 +1017,18 @@ class RateGenerator( _PropertyGenerator_ ):
     # ----------------- #
     def rate_Ibc_basic(self,z):
         """
-        [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
         return 2.25e-5 * (1 + z)
 
     def rate_IIn_basic(self,z):
         """
-        [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
         return 7.5e-6 * (1 + z)
 
     def rate_IIP_basic(self,z):
         """
-        [TODO: Add source]
         (comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.)
         """
         return 1.2e-4 * (1 + z)
@@ -968,7 +1094,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
 
     def get_model(self, transient="Ia",  template="hisao", **kwargs):
-        """
+        """Retrieve built-in transient model
         """
         name = "%s_%s"%(transient, template)
         if name in self.known_models:
@@ -977,7 +1103,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
             raise ValueError("No lightcurve model available for '%s'"%name)
 
     def set_model(self, model):
-        """
+        """Set transient model
         """
         self._side_properties["model"] = model
 
@@ -1105,13 +1231,6 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     # ----------------- #
     # - Ia LC         - #
     # ----------------- #
-
-    # Functions to be implemented
-    # Lightcurve parameter randomizers:
-    # - Ibc snana basic
-    # - IIn snana basic (including mag distro trunction)
-    # - IIP snana basic
-    # - SpectralIndexSource
 
     def lightcurve_Ia_salt2_basic(self, redshifts, model,
                                   color_mean=0, color_sigma=0.1,

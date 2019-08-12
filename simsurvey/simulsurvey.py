@@ -53,7 +53,15 @@ class SimulSurvey( BaseObject ):
         """
         Parameters:
         ----------
-        generator: [simultarget.transient_generator or derived child like sn_generator]
+        generator: simultarget.transient_generator or derived child like sn_generator
+        plan: simulsurvey.SurveyPlan object
+
+        Optional parameters:
+        -------------------
+        instprop: dictionary with registered bandpass names and their default zp, zpsys and gain
+        blinded_bias: dictionary with registered bandpass names and a number m representing a magnitude shift, 
+                      all fluxes in thar band will be shifted by the same random shift drawn from a uniform
+                      distribution with the interval [-m, m] 
 
         """
         self.__build__()
@@ -86,7 +94,15 @@ class SimulSurvey( BaseObject ):
     # - Get Methods        - #
     # ---------------------- #
     def get_lightcurves(self, *args, **kwargs):
-        """
+        """Generate lightcurves based on survey plan and random transient 
+        lightcurve parameters
+        
+        args can be start, end, and step as for range()
+        
+        Kwargs:
+        progressbar -- [bool] Show a progress bar usign `astropy.utils.console`
+        notebook -- [bool] use in combination with progressbar if running
+                           code in a jupyter notebook
         """
         args = range_args(self.generator.ntransient, *args)
         progress_bar = kwargs.pop('progress_bar', False)
@@ -203,7 +219,7 @@ class SimulSurvey( BaseObject ):
     # -------------
     # - Targets
     def set_target_generator(self, generator):
-        """
+        """Set the `TargetGenerator` object to be used in the simulation
         """
         if "__nature__" not in dir(generator) or\
           generator.__nature__ != "TransientGenerator":
@@ -216,8 +232,8 @@ class SimulSurvey( BaseObject ):
 
     # -------------
     # - SurveyPlan
-    def set_plan(self,plan):
-        """
+    def set_plan(self, plan):
+        """Set the `SurveyPlan` object to be used in  the simulation
         """
         # ----------------------
         # - Load cadence here
@@ -269,10 +285,10 @@ class SimulSurvey( BaseObject ):
     # - Blinded bias in bands
     def set_blinded_bias(self, bias):
         """Expect input dict of band and bounds maximum bias
-        Bias will be drawn from uniform distribution
+        Bias will be drawn from uniform distribution and applied to the lightcurves
         """
         self._side_properties['blinded_bias'] = {k: np.random.uniform(-v, v) 
-                                            for k, v in bias.items()}
+                                                 for k, v in bias.items()}
 
     def set_phase_range(self, phase_range):
         """
@@ -282,7 +298,7 @@ class SimulSurvey( BaseObject ):
         self._side_properties['phase_range'] = phase_range
 
     # ---------------------- #
-    # - Add Stuffs         - #
+    # - Add Stuff          - #
     # ---------------------- #
     def add_instrument(self, bandname, gain=1., zp=30, zpsys="ab", err_calib=None,
                        force_it=True, update=True, **kwargs):
@@ -306,29 +322,9 @@ class SimulSurvey( BaseObject ):
             # self._reset_observations_()
             pass
 
-    # ---------------------- #
-    # - Recover Methods    - #
-    # ---------------------- #
-    #def recover_targets(self):
-    #    """
-    #    bunch threshold...
-    #    """
-    #
-    #def recover_lightcurves(self):
-    #    """
-    #    """
-
     # =========================== #
     # = Internal Methods        = #
-    # =========================== #
-    def _update_lc_(self):
-        """
-        """
-        # -----------------------------
-        # -- Do you have all you need ?
-        if not self.is_set():
-            return
-            
+    # =========================== #           
     def _get_observations_(self, *args):
         """
         """  
@@ -558,8 +554,54 @@ class SurveyPlan( BaseObject ):
         """
         Parameters:
         ----------
-        TBA
+        time: [np.array-like]         pointing times in units of day (e.g. MJD), required
+        
+        band: [list-like]             names of bandpasses (need to be registered in `sncosmo`),
+                                      required
+        
+        skynoise: [np.array_like]     skynoise values as used for `sncosmo.realize_lcs`,
+                                      to convert from e.g. 5-sigma limiting magnitude, use 1/5 
+                                      of corresponding flux given the zero point used, i.e.
+                                      10 ** (0.4 * (zp - limmag)) / 5, required
 
+        
+        obs_fields: [np.array-like]   observed field number, required unless RA and Dec 
+                                      are provided for individual pointings
+        
+        ra: [np.array-like]           observed RA in deg, required unless field numbers are
+                                      provided
+        
+        dec: [np.array-like]          observed Dec in deg, required unless field numbers are
+                                      provided
+        
+
+        obs_ccd: [np.array-like]      individual CCD numbers can be provided to allow
+                                      varying skynoise, optional
+ 
+        zp: [np.array-like]           zero points for each observation as used in `sncosmo`,
+                                      optional (default: 30)
+        
+        comment: [list-like]          comment string that will be passed on to the output 
+                                      lightcurves, e.g. for different subsurveys, optional
+
+
+        
+        width: [float]                Default width (RA in deg) of the initial box used to 
+                                      match simulated transient coordinates to pointings 
+        
+        height: [float]               Default width (RA in deg) of the initial box used to 
+                                      match simulated transient coordinates to pointings 
+        
+        fields: [dictionary]          dictionary defining the field grid of a survey,
+                                      needs to contain at least arrays with 'ra' and 'dec',
+                                      optional
+        
+        ccds: [list]                  list of corners of individual CCDs, optional
+ 
+        
+        load_opsim: [str]             load plan from obsim file (experimental)
+        
+        empty: [bool]                 Do not process the other arguments
         """
         self.__build__()
         if empty:
@@ -602,11 +644,25 @@ class SurveyPlan( BaseObject ):
     # - Setter Methods     - #
     # ---------------------- #
     def set_fields(self, ra=None, dec=None, ccds=None, **kwargs):
-        """
+        """Set the centers of the fields of your survey's field grid (if any)
+
+        Arguments:
+        ra: [np.array or list-like]    list of RA of the field centers
+        dec: [np.array or list-like]   list of Dec of the field centers
+        ccds: [list]                   list of corners of individual CCDs
+
+        width: [float]                 Default width (RA in deg) of the initial box used to 
+                                       match simulated transient coordinates to pointings 
+        
+        height: [float]                Default width (RA in deg) of the initial box used to 
+                                       match simulated transient coordinates to pointings 
         """
         kwargs["width"] = kwargs.get("width", self.width)
         kwargs["height"] = kwargs.get("height", self.height)
 
+        if ccds is not None:
+            self._side_properties["ccds"] = ccds
+        
         self._side_properties["fields"] = SurveyFieldBins(ra, dec, ccds=self.ccds,
                                                           **kwargs)
 
@@ -617,7 +673,37 @@ class SurveyPlan( BaseObject ):
 
     def add_observation(self, time, band, skynoise, ra=None, dec=None, field=None,
                         ccd=None, zp=None, comment=None):
-        """
+        """Add observations to the pointing list
+
+        time: [np.array-like]         pointing times in units of day (e.g. MJD), required
+        
+        band: [list-like]             names of bandpasses (need to be registered in `sncosmo`),
+                                      required
+        
+        skynoise: [np.array_like]     skynoise values as used for `sncosmo.realize_lcs`,
+                                      to convert from e.g. 5-sigma limiting magnitude, use 1/5 
+                                      of corresponding flux given the zero point used, i.e.
+                                      10 ** (0.4 * (zp - limmag)) / 5, required
+
+        
+        fields: [np.array-like]       observed field number, required unless RA and Dec 
+                                      are provided for individual pointings
+        
+        ra: [np.array-like]           observed RA in deg, required unless field numbers are
+                                      provided
+        
+        dec: [np.array-like]          observed Dec in deg, required unless field numbers are
+                                      provided
+        
+
+        ccd: [np.array-like]          individual CCD numbers can be provided to allow
+                                      varying skynoise, optional
+ 
+        zp: [np.array-like]           zero points for each observation as used in `sncosmo`,
+                                      optional (default: 30)
+        
+        comment: [list-like]          comment string that will be passed on to the output 
+                                      lightcurves, e.g. for different subsurveys, optional
         """
         if ra is None and dec is None and field is None:
             raise ValueError("Either field or ra and dec must to specified.")
