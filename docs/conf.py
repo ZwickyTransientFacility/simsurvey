@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'simsurvey'
-copyright = '2018, Ulrich Feindt'
+copyright = '2018-2019, Ulrich Feindt'
 author = 'Ulrich Feindt'
 
 # The short X.Y version

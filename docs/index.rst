@@ -3,16 +3,20 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to simsurvey's documentation!
-=====================================
+simsurvey
+=========
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
+   :titlesonly:
+
+   install
+   example
 
 simsurvey is a Python library for simulating the lightcurve obtained by a astronomical transient survey.
 
-	     
+* The source code is available on github: https://github.com/ufeindt/simsurvey
+* Report bugs, request features: https://github.com/ufeindt/simsurvey/issues
 
 Indices and tables
 ==================
