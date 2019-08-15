@@ -18,6 +18,7 @@ by a astronomical transient survey.
    surveyplan
    builtin-transients
    custom-transients
+   simulsurvey
    lightcurve-collections
    
 More

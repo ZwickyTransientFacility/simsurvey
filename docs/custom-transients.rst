@@ -1,3 +1,5 @@
+.. _custom-transients:
+
 *****************
 Custom Transients
 *****************
