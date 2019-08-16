@@ -198,7 +198,7 @@ class TransientGenerator( BaseObject ):
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90), apply_mwebv=True,
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01,
-               seed+None):
+               seed=None):
         """
         """
         # == Add the Input Test == #

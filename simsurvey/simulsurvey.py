@@ -42,14 +42,17 @@ class SimulSurvey( BaseObject ):
     __nature__ = "SimulSurvey"
 
     PROPERTIES         = ["generator", "instruments", "plan"]
-    SIDE_PROPERTIES    = ["pointings", "blinded_bias", "phase_range"]
+    SIDE_PROPERTIES    = ["pointings", "blinded_bias", "phase_range",
+                          "threshold", "n_det", "p_bins"]
     DERIVED_PROPERTIES = ["obs_fields", "obs_ccd",
                           "non_field_obs", "non_field_obs_ccd",
                           "non_field_obs_exist"]
 
     def __init__(self, generator=None, plan=None,
                  instprop=None, blinded_bias=None,
-                 phase_range=None, empty=False):
+                 phase_range=None, empty=False,
+                 threshold=5., n_det=2, seed=None,
+                 p_bins=np.arange(-30, 71, 5)):
         """
         Parameters:
         ----------
@@ -68,9 +71,13 @@ class SimulSurvey( BaseObject ):
         if empty:
             return
 
-        self.create(generator, plan, instprop, blinded_bias, phase_range)
+        self.create(generator, plan, instprop, blinded_bias, phase_range, seed)
 
-    def create(self, generator, plan, instprop, blinded_bias, phase_range):
+        self.set_threshold(threshold)
+        self.set_n_det(n_det)
+        self.set_p_bins(p_bins)
+        
+    def create(self, generator, plan, instprop, blinded_bias, phase_range, seed):
         """
         """
         if generator is not None:
@@ -86,6 +93,9 @@ class SimulSurvey( BaseObject ):
         if phase_range is not None:
             self.set_phase_range(phase_range)
 
+        if seed is not None:
+            np.random.seed(seed) 
+            
     # =========================== #
     # = Main Methods            = #
     # =========================== #
@@ -108,10 +118,15 @@ class SimulSurvey( BaseObject ):
         progress_bar = kwargs.pop('progress_bar', False)
         notebook = kwargs.pop('notebook', False)
 
+        n_det = kwargs.pop('n_det', self.n_det)
+        threshold = kwargs.pop('threshold', self.threshold)
+        p_bins = kwargs.pop('p_bins', self.p_bins)
+
         if not self.is_set():
             raise AttributeError("plan, generator or instrument not set")
 
-        lcs = LightcurveCollection(empty=True)
+        lcs = LightcurveCollection(empty=True, threshold=threshold, n_det=n_det,
+                                   p_bins=p_bins)
         gen = izip(range(*args),
                    self.generator.get_lightcurve_full_param(*args),
                    self._get_observations_(*args))
@@ -479,6 +494,36 @@ class SimulSurvey( BaseObject ):
             return (self.generator.model._source.minphase() - 14,
                     self.generator.model._source.maxphase())
 
+    @property
+    def threshold(self):
+        """"""
+        return self._side_properties["threshold"]
+
+    def set_threshold(self, threshold):
+        """
+        """
+        self._side_properties["threshold"] = threshold
+
+    @property
+    def n_det(self):
+        """"""
+        return self._side_properties["n_det"]
+
+    def set_n_det(self, n_det):
+        """
+        """
+        self._side_properties["n_det"] = n_det
+
+    @property
+    def p_bins(self):
+        """"""
+        return self._side_properties["p_bins"]
+
+    def set_p_bins(self, p_bins):
+        """
+        """
+        self._side_properties["p_bins"] = p_bins
+        
     # ------------------
     # - Derived values
     @property
@@ -621,7 +666,19 @@ class SurveyPlan( BaseObject ):
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
         self._side_properties["ccds"] = kwargs.pop('ccds', None)
-        
+
+        if self.ccds is not None:
+            min_width = 2 * max([max([max(a[:,0]) for a in self.ccds]),
+                                 -min([min(a[:,0]) for a in self.ccds])])
+            min_height = 2 * max([max([max(a[:,1]) for a in self.ccds]),
+                                  -min([min(a[:,1]) for a in self.ccds])])
+            
+            if self.width < min_width:
+                self._properties["width"] = min_width
+
+            if self.height < min_height:
+                self._properties["height"] = min_height
+            
         if fields is not None:
             self.set_fields(**fields)
 
@@ -994,7 +1051,7 @@ class LightcurveCollection( BaseObject ):
     SIDE_PROPERTIES    = ['threshold', 'n_det', 'p_bins']
     DERIVED_PROPERTIES = ['stats']
 
-    def __init__(self,  threshold=5., n_det=2,
+    def __init__(self, threshold=5., n_det=2,
                  p_bins=np.arange(-30, 71, 5), empty=False,
                  **kwargs):
         """
@@ -1117,7 +1174,7 @@ class LightcurveCollection( BaseObject ):
         os.rmdir(tmpdir)
         os.chdir(cwd)
         
-    def filter(self, filterfunc, n_det=None, threshold=None):
+    def filter(self, filterfunc=(lambda lc: lc), n_det=None, threshold=None, p_bins=None):
         """Create new LightcurveCollection, where each lc
         is filtered using filterfunc which takes the lc as an argument
         If the lc is empty due to filtering or None, it is not added
@@ -1128,8 +1185,14 @@ class LightcurveCollection( BaseObject ):
 
         if threshold is None:
             threshold = self.threshold
+
+        if p_bins is None:
+            p_bins = self.p_bins
+            
+        lcs = LightcurveCollection(empty=True, n_det=n_det, threshold=threshold,
+                                   p_bins=p_bins)
         
-        lcs = LightcurveCollection(empty=True, n_det=n_det, threshold=threshold)
+        lcs._properties["meta_rejected"] = deepcopy(self._properties['meta_rejected'])
         
         for k in range(len(self.lcs)):
             lc = self._get_lc_(k)
