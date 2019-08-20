@@ -20,6 +20,7 @@ by a astronomical transient survey.
    custom-transients
    simulsurvey
    lightcurve-collections
+   additional-sources
    
 More
 ====
