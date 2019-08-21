@@ -60,8 +60,8 @@ fields will be numbered started with 0.
                                fields=fields)
 
 
-Changing the Field of View
-==========================
+Changing the Field of View and Adding Comments
+==============================================
 
 By default field of view is set such that it encompasses the whole
 field of view of ZTF. When simulation another survey the size of the
@@ -86,13 +86,18 @@ individual CCDs. In this case, not all CCDs need to have information
 for each observation (e.g. because reference images were only
 completed for some of the CCDs on a specific field).
 
+Lastly each observation can be given a comment, which allows the user
+to pass additional information, e.g. which subsurvey of a larger
+survey the observation was taken for.
+
 ::
 
    obs = {'time': [56176.19, 56176.19, 56188.254, 56188.254, 56207.172, 56207.172],
           'band': ['desg', 'desg', 'desr', 'desr', 'desi', 'desi],
           'skynoise': [1261.0, 1444.0, 1261.0, 1444.0, 1261.0, 1444.0],
 	  'field': [725, 725, 725, 725, 725, 725],
-	  'ccd': [0, 1, 0, 1, 0, 1]}
+	  'ccd': [0, 1, 0, 1, 0, 1],
+	  'comments': ['all-sky', 'all-sky', 'all-sky', 'all-sky', 'i-band', 'i-band']}
 
    fields = {'ra': [269.8, 278.4],
              'dec': [40.5, 40.5].
@@ -109,5 +114,6 @@ completed for some of the CCDs on a specific field).
 			       obs_field=obs['field'],,
 			       obs_ccd=obs['ccd']
                                skynoise=obs['skynoise'], 
-                               fields=fields,
-			       ccds=cdds)
+                               comments=obs['comments'],
+			       fields=fields,
+			       ccds=ccds)

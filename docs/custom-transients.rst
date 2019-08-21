@@ -84,3 +84,61 @@ Hsiao template, showing all steps required for it.
    import numpy as np
    import sncosmo
    import simsurvey
+   from astropy.cosmology import Planck15
+
+   # Make sure that the Hsiao template is downloaded
+   # and then load it from its default location
+   sncosmo.get_source('hsiao', version='3.0')
+   p, w, f = sncosmo.read_griddata_fits(
+       os.path.join(sncosmo.builtins.get_cache_dir(),
+       'sncosmo/models/hsiao/Hsiao_SED_V3.fits')
+   )
+
+   # Define model using StretchSource and CCM89 extinction in rest-frame
+   model = sncosmo.Model(
+       source=sncosmo.StretchSource(p, w, f, name='hsiao-stretch'),
+       effects=[sncosmo.CCM89Dust()],
+       effect_names=['host'],
+       effect_frames=['rest']
+   )
+
+   # Define the function that generates the lightcurve parameters
+   # (Note how the value for mags is not in the typical range for SNe Ia.
+   #  This will be fixed by passing new value 
+   def random_parameters(self, redshifts, model,
+                         mag=(-18., 1.),
+                         r_v=2., ebv_rate=0.11,
+                         alpha=1.3,
+			 cosmo=Planck15
+                         **kwargs):
+        """
+        """
+        out = {}
+
+	amp = []
+	for z in redshifts:
+	    model.set(z=z)
+            model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
+            amp.append(model.get('amplitude'))
+
+	out['amplitude'] = np.array(amp)
+	out['hostr_v'] = r_v * np.ones(len(redshifts))
+	out['hostebv'] =  np.random.exponential(ebv_rate, len(redshifts))
+	    
+        out['s'] = np.random.normal(1., 0.1, len(redshifts))
+        out['amplitude'] *= 10 ** (0.4 * alpha * (out['s'] - 1))
+
+        return out
+
+   transientprop = {
+       'lcmodel': model,
+       'lcsimul_func': random_parameters,
+       'lcsimul_prop': {'mag': (-19.3, 0.1)}
+   }
+
+   tr = simsurvey.get_transient_generator((0.0, 0.05),
+                                          ratefunc=lambda z: 3e-5,
+					  ra_range=(0,360),
+                                          dec_range=(-30,90),
+                                          mjd_range=(58178, 58543),
+					  transientprop=transientprop)
