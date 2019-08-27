@@ -6,8 +6,8 @@
 simsurvey
 =========
 
-simsurvey is a Python library for simulating the lightcurve obtained
-by a astronomical transient survey.
+simsurvey is a Python package for simulating the lightcurves obtained
+by an astronomical transient survey.
 
 .. toctree::
    :maxdepth: 1
