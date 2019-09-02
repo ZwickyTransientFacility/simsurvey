@@ -6,7 +6,7 @@
 import warnings
 import numpy as np
 import pickle
-from copy import deepcopy
+from copy import copy, deepcopy
 from collections import OrderedDict as odict
 
 try:
@@ -21,7 +21,7 @@ from scipy.interpolate import (InterpolatedUnivariateSpline as Spline1d,
 import sncosmo
 
 __all__ = ["BlackBodySource", "ExpandingBlackBodySource",
-           "MultiSource", "SpectralIndexSource"]
+           "MultiSource", "SpectralIndexSource", "CompoundSource"]
 
 #######################################
 #                                     #
@@ -125,6 +125,73 @@ class MultiSource(sncosmo.Source):
         """template index"""
         return int(self._parameters[2])
 
+class CompoundSource(sncosmo.Source):
+    """
+    """
+    def __init__(self, sources, name=None, version=None):
+        self.name = name
+        self.version = version
+
+        self._sources = sources
+        self._parameters = np.array([0. for k in range(1, len(sources))])
+        self._param_names = ['dt_%i'%k for k in range(1, len(sources))]
+        self.param_names_latex = ['\Delta_t^{(%i)}'%k for k in range(1, len(sources))]
+        
+        for k, source in enumerate(sources):
+            if k > 0 and 'dt' in source._param_names:
+                raise ValueError('Sources cannot have parameters named "dt"')
+            
+            self._parameters = np.append(self._parameters, source._parameters)
+            self._param_names.extend(['%s_%i'%(n_, k) for n_ in source._param_names])
+            self.param_names_latex.extend(['%s^{(%i)}'%(n_, k)
+                                           for n_ in source.param_names_latex])
+
+        self._current_parameters = copy(self._parameters)
+            
+    def minwave(self):  
+        return max([source.minwave() for source in self._sources])
+
+    def maxwave(self):  
+        return min([source.maxwave() for source in self._sources])
+    
+    def minphase(self):
+        return min([(source.minphase()
+                     if k == 0
+                     else source.minphase() + self._parameters[k-1])
+                    for k, source in enumerate(self._sources)])
+
+    def maxphase(self):
+        return max([(source.maxphase()
+                     if k == 0
+                     else source.maxphase() + self._parameters[k-1])
+                    for k, source in enumerate(self._sources)])
+
+    def update_param(self):
+        param_tmp = list(self._parameters[len(self._sources)-1:])
+        for source in self._sources:
+            for n_ in source._param_names:
+                print(n_, param_tmp)
+                source.set(**{n_: param_tmp.pop(0)})
+
+        self._current_parameters = copy(self._parameters)
+                
+    def _flux(self, phase, wave):
+        if np.any(self._current_parameters != self._parameters):
+            self.update_param()
+
+        out = np.zeros((len(phase), len(wave)))
+
+        mask = ((phase >= self._sources[0].minphase()) &
+                (phase <= self._sources[0].maxphase()))
+        out[mask, :] = self._sources[0]._flux(phase[mask], wave)
+
+        for k, source in enumerate(self._sources[1:]):
+            mask = ((phase - self._parameters[k] >= source.minphase()) &
+                    (phase - self._parameters[k] <= source.maxphase()))
+            out[mask, :] += source._flux(phase[mask] - self._parameters[k], wave)
+        
+        return out
+    
 class ExpandingBlackBodySource(sncosmo.Source):
     """
     """

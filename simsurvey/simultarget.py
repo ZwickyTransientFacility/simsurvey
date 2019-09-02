@@ -16,7 +16,7 @@ from astropy.cosmology import Planck15
 
 from propobject import BaseObject
 
-from .models import ExpandingBlackBodySource#, SpectralIndexSource, MultiSource
+from .models import ExpandingBlackBodySource, MultiSource#, SpectralIndexSource
 
 from .utils       import random
 from .utils.tools import kwargs_extract, kwargs_update, range_args
@@ -78,6 +78,10 @@ def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
     seed: [int]                     set np.random.seed for repeatability
                                     (note: this will set the seed globally and thus affect
                                     code run after generating the random transients)
+
+    cosmo [astropy.Cosmology]       cosmology model used generate the redshift distribution
+                                    (note: this does not change the cosmology used to convert
+                                    the luminosity function to model parameters)
     """
     return TransientGenerator(ratekind=ratekind,ratefunc=ratefunc,
                               ntransient=ntransient,zrange=zrange,
@@ -133,7 +137,8 @@ class TransientGenerator( BaseObject ):
 
     PROPERTIES         = ["transient_coverage",
                           "event_coverage"]
-    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv", "apply_mwebv"]
+    SIDE_PROPERTIES    = ["sfd98_dir", "ratefunc", "model", "err_mwebv", "apply_mwebv",
+                          "cosmo"]
     DERIVED_PROPERTIES = ["simul_parameters", "mwebv", "mwebv_sfd98", 
                           "has_mwebv_sfd98", "lightcurve_parameters"]
 
@@ -186,6 +191,10 @@ class TransientGenerator( BaseObject ):
                                         code run after generating the random transients)
 
         empty: [bool]                   Do not process the other arguments
+
+        cosmo [astropy.Cosmology]       cosmology model used generate the redshift distribution
+                                        (note: this does not change the cosmology used to convert
+                                        the luminosity function to model parameters)
         """
         self.__build__()
         if empty:
@@ -198,7 +207,7 @@ class TransientGenerator( BaseObject ):
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90), apply_mwebv=True,
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01,
-               seed=None):
+               seed=None, cosmo=Planck15):
         """
         """
         # == Add the Input Test == #
@@ -208,6 +217,7 @@ class TransientGenerator( BaseObject ):
 
         self.set_sfd98_dir(sfd98_dir)
         self.set_apply_mwebv(apply_mwebv)
+        self.set_cosmo(cosmo)
 
         if seed is not None:
             np.random.seed(seed)
@@ -594,7 +604,7 @@ class TransientGenerator( BaseObject ):
             self.simul_parameters["zcmb"] = \
                 list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
                                    time=self.timescale, area=self.coveredarea,
-                                   ratefunc=self.ratefunc))
+                                   ratefunc=self.ratefunc, cosmo=self.cosmo))
         else:
             self.simul_parameters["zcmb"] = \
                 list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
@@ -879,6 +889,18 @@ class TransientGenerator( BaseObject ):
         self._properties['err_mwebv'] = err
 
     @property
+    def cosmo(self):
+        """Cosmology model for generating the redshift distribution"""
+        return self._properties["cosmo"]
+
+    def set_cosmo(self, cosmo):
+        """Set cosmology model 
+        """
+        self._properties['cosmo'] = cosmo
+
+    
+
+    @property
     def transienttype(self):
         """
         """
@@ -927,7 +949,7 @@ class TransientGenerator( BaseObject ):
         """
         """
         return self.transient_coverage["lightcurve_prop"]
-        
+    
 #######################################
 #                                     #
 # Generator: Transient Rate           #
@@ -1212,13 +1234,13 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         """
         """
         data_sed = {'p': [], 'w': [], 'f': []}
-        for sed_file in sed_files[0]:
+        for sed_file in files:
             p_, w_, f_ = sncosmo.read_griddata_ascii(sed_file)
             data_sed['p'].append(p_)
             data_sed['w'].append(w_)
             data_sed['f'].append(f_)
 
-        source = simsurvey.MultiSource(data_sed['p'], data_sed['w'], data_sed['f'])
+        source = MultiSource(data_sed['p'], data_sed['w'], data_sed['f'])
         return sncosmo.Model(source=source,
                              effects=[sncosmo.CCM89Dust()],
                              effect_names=['host'],
@@ -1434,7 +1456,7 @@ def lightcurve_scaled_to_mag(redshifts, model,
     """
     out = {}
     if n_templates > 1:
-        out['template_index'] = np.random.randint(0, n_temp, len(redshifts))
+        out['template_index'] = np.random.randint(0, n_templates, len(redshifts))
         model_kw = [{'template_index': k} for k in out['template_index']]
     elif n_templates == 1:
         model_kw = [{} for z in redshifts]
@@ -1456,7 +1478,6 @@ def lightcurve_scaled_to_mag(redshifts, model,
             amp.append(model.get('amplitude'))
         else:
             model.set(z=0, amplitude=1, **model_kw_)
-            mag_abs = np.random.normal(mag[0], mag[1])
             mag_current = model.bandmag('sdssr', 'ab', 1)
             dm = mag_current - mag_abs
             amp.append(10**(0.4*(dm-cosmo.distmod(z).value)))
@@ -1538,8 +1559,8 @@ def get_snana_filenames(sntype):
     for name, version in source_tuples:
         filepath = os.path.join(sncosmo.builtins.get_cache_dir(),
                                 'sncosmo',
-                                reg._loaders[(name, version)][1])
-        if not os.exists(filepath):
+                                reg._loaders[(name, version)][1][0])
+        if not os.path.exists(filepath):
             sncosmo.get_source(name, version=version)
         filenames.append(filepath)
 

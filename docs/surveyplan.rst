@@ -50,7 +50,7 @@ fields will be numbered started with 0.
 	  'field': [725, 725, 725]}
 
    fields = {'ra': [269.8, 278.4],
-             'dec': [40.5, 40.5].
+             'dec': [40.5, 40.5],
 	     'field_id': [725, 726]}
 
    plan = simsurvey.SurveyPlan(time=obs['time'],
@@ -93,26 +93,26 @@ survey the observation was taken for.
 ::
 
    obs = {'time': [56176.19, 56176.19, 56188.254, 56188.254, 56207.172, 56207.172],
-          'band': ['desg', 'desg', 'desr', 'desr', 'desi', 'desi],
+          'band': ['desg', 'desg', 'desr', 'desr', 'desi', 'desi'],
           'skynoise': [1261.0, 1444.0, 1261.0, 1444.0, 1261.0, 1444.0],
 	  'field': [725, 725, 725, 725, 725, 725],
 	  'ccd': [0, 1, 0, 1, 0, 1],
 	  'comments': ['all-sky', 'all-sky', 'all-sky', 'all-sky', 'i-band', 'i-band']}
 
    fields = {'ra': [269.8, 278.4],
-             'dec': [40.5, 40.5].
+             'dec': [40.5, 40.5],
 	     'field_id': [725, 726]}
 
-   ccds = [[[-1., -1.],   [-0.1, -1.], [-0.1, -0.1], [-1, -0.1]],
-           [[0.1, -1.],   [1., -1.],   [1., -0.1],   [0.1, -0.1]],
-	   [[-1., 0.1],   [-0.1, 0.1], [-0.1, 1.],   [-1, 1.]],
-	   [[0.1., 0.1.], [1., 0.1.],  [1., 1.],     [0.1, 1.]]]
+   ccds = np.array([[[-1., -1.],   [-0.1, -1.], [-0.1, -0.1], [-1, -0.1]],
+                    [[0.1, -1.],   [1., -1.],   [1., -0.1],   [0.1, -0.1]],
+	            [[-1., 0.1],   [-0.1, 0.1], [-0.1, 1.],   [-1, 1.]],
+	            [[0.1, 0.1],   [1., 0.1],   [1., 1.],     [0.1, 1.]]]
    
 
    plan = simsurvey.SurveyPlan(time=obs['time'],
                                band=obs['band'],
-			       obs_field=obs['field'],,
-			       obs_ccd=obs['ccd']
+			       obs_field=obs['field'],
+			       obs_ccd=obs['ccd'],
                                skynoise=obs['skynoise'], 
                                comments=obs['comments'],
 			       fields=fields,

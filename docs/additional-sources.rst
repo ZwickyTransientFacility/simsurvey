@@ -25,17 +25,17 @@ step to reproduce this.
    import sncosmo
    import simsurvey
    from astropy.cosmology import Planck15
-
+   
    # Assume that sed_files contains the paths to the SEDs used for the sources
    data_sed = {'p': [], 'w': [], 'f': []}
-   for sed_file in sed_files[0]:
+   for sed_file in files:
        p_, w_, f_ = sncosmo.read_griddata_ascii(sed_file)
        data_sed['p'].append(p_)
        data_sed['w'].append(w_)
        data_sed['f'].append(f_)
-
+   
    source = simsurvey.MultiSource(data_sed['p'], data_sed['w'], data_sed['f'])
-
+   
    # Define model using MultiSource and CCM89 extinction in rest-frame
    model = sncosmo.Model(
        source=source,
@@ -43,53 +43,53 @@ step to reproduce this.
        effect_names=['host'],
        effect_frames=['rest']
    )
-
+   
    # Define the function that generates the lightcurve parameters
    # (Note how the value for mags is not in the typical range for SNe Ia.
-   #  This will be fixed by passing new value 
-   def random_parameters(self, redshifts, model,
+   #  This will be fixed by passing new value
+   def random_parameters(redshifts, model,
                          mag=(-18., 1.),
                          r_v=2., ebv_rate=0.11,
-			 cosmo=Planck15,
-			 n_templates=len(model._source._model_flux),
+                         cosmo=Planck15,
+                         n_templates=len(model._source._model_flux),
                          **kwargs):
-        """
-        """
-	out = {}
-	if n_templates > 1:
-            out['template_index'] = np.random.randint(0, n_temp, len(redshifts))
-            model_kw = [{'template_index': k} for k in out['template_index']]
-        elif n_templates == 1:
-            model_kw = [{} for z in redshifts]
+       """
+       """
+       out = {}
+       if n_templates > 1:
+           out['template_index'] = np.random.randint(0, n_templates, len(redshifts))
+           model_kw = [{'template_index': k} for k in out['template_index']]
+       elif n_templates == 1:
+           model_kw = [{} for z in redshifts]
    
-        # Amplitude
-        amp = []
-        for z, model_kw_ in zip(redshifts, model_kw):
-            model.set(z=z, **model_kw_)
-            model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
-            amp.append(model.get('amplitude'))
-
-	out['amplitude'] = np.array(amp)
-        out['hostr_v'] = r_v * np.ones(len(redshifts))
-        out['hostebv'] =  np.random.exponential(ebv_rate, len(redshifts))
+       # Amplitude
+       amp = []
+       for z, model_kw_ in zip(redshifts, model_kw):
+           mabs = np.random.normal(mag[0], mag[1])
+           model.set(z=z, **model_kw_)
+           model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
+           amp.append(model.get('amplitude'))
    
-        return out
-   	
-
+       out['amplitude'] = np.array(amp)
+       out['hostr_v'] = r_v * np.ones(len(redshifts))
+       out['hostebv'] =  np.random.exponential(ebv_rate, len(redshifts))
+   
+       return out
+   
+   
    transientprop = {
        'lcmodel': model,
        'lcsimul_func': random_parameters,
-       'lcsimul_prop': {'mag': (-16.75, 1.)}
+       'lcsimul_prop': {'mag': (-16.75, 1.), 'n_templates': 2}
    }
-
+   
    tr = simsurvey.get_transient_generator((0.0, 0.05),
                                           ratefunc=lambda z: 1.2e-4,
- 					  ra_range=(0,360),
+                                          ra_range=(0,360),
                                           dec_range=(-30,90),
                                           mjd_range=(58178, 58543),
-					  transientprop=transientprop)
-
-
+                                          transientprop=transientprop)
+   
 CompoundSource
 ==============
 
@@ -116,12 +116,18 @@ images, the source would then be defined as follows:
 
 ::
 
-   from sncsosmo import Salt2Source
+   import os
+   import sncosmo
    from simsurvey import CompoundSource
-
-   source = CompoundSource((Salt2Source(), Salt2Source())
    
-
+   p, w, f = sncosmo.read_griddata_fits(
+       os.path.join(sncosmo.builtins.get_cache_dir(),
+       'sncosmo/models/hsiao/Hsiao_SED_V3.fits')
+   )
+   
+   source = CompoundSource((sncosmo.StretchSource(p, w, f, name='hsiao-stretch1'),
+                            sncosmo.StretchSource(p, w, f, name='hsiao-stretch2')))
+      
 
 ExpandingBlackBodySource
 ========================
@@ -145,7 +151,7 @@ counterpart of GW170817 can be implemented like this:
        minphase=0.5, maxphase=15.,
        tempfunc=(lambda p, t: p[0] * t**p[1]),
        tempparam=(6050, -0.62),
-       radiusfunc=(lambda p, t: p[0] * (1-np.exp(-p[1]*t) + p[2]*t),
+       radiusfunc=(lambda p, t: p[0] * (1-np.exp(-p[1]*t) + p[2]*t)),
        radiusparam=(24000, 0.42, 2500)
    )
 

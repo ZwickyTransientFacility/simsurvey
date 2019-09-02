@@ -105,30 +105,31 @@ Hsiao template, showing all steps required for it.
    # Define the function that generates the lightcurve parameters
    # (Note how the value for mags is not in the typical range for SNe Ia.
    #  This will be fixed by passing new value 
-   def random_parameters(self, redshifts, model,
+   def random_parameters(redshifts, model,
                          mag=(-18., 1.),
                          r_v=2., ebv_rate=0.11,
                          alpha=1.3,
 			 cosmo=Planck15
                          **kwargs):
-        """
-        """
-        out = {}
+       """
+       """
+       out = {}
 
-	amp = []
-	for z in redshifts:
-	    model.set(z=z)
-            model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
-            amp.append(model.get('amplitude'))
+       amp = []
+       for z in redshifts:
+           mabs = np.random.normal(mag[0], mag[1])
+           model.set(z=z)
+           model.set_source_peakabsmag(mabs, 'bessellb', 'vega', cosmo=cosmo)
+           amp.append(model.get('amplitude'))
 
-	out['amplitude'] = np.array(amp)
-	out['hostr_v'] = r_v * np.ones(len(redshifts))
-	out['hostebv'] =  np.random.exponential(ebv_rate, len(redshifts))
+       out['amplitude'] = np.array(amp)
+       out['hostr_v'] = r_v * np.ones(len(redshifts))
+       out['hostebv'] =  np.random.exponential(ebv_rate, len(redshifts))
 	    
-        out['s'] = np.random.normal(1., 0.1, len(redshifts))
-        out['amplitude'] *= 10 ** (0.4 * alpha * (out['s'] - 1))
+       out['s'] = np.random.normal(1., 0.1, len(redshifts))
+       out['amplitude'] *= 10 ** (0.4 * alpha * (out['s'] - 1))
 
-        return out
+       return out
 
    transientprop = {
        'lcmodel': model,
