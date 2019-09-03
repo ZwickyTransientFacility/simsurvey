@@ -7,7 +7,11 @@ Simulation tools for astronomical surveys (cadence, strategy).
 Python
 ------
 
-**Documentation:** Not done yet
+**Documentation:** https://simsurvey.readthedocs.io/
+
+**Paper:** [Feindt et al. (submitted)](https://arxiv.org/abs/1902.03923)
+
+**Citing simsurvey:**
 
 **Installation**
 ```
@@ -27,4 +31,8 @@ _Optional_
 Examples
 --------
 
-Example notebooks can be found at https://github.com/ZwickyTransientFacility/simsurvey-examples
+Scripts to rerun the analysis performed in [Feindt et al. (submitted)](https://arxiv.org/abs/1902.03923) are available at https://github.com/ufeindt/simsurvey-paper-scripts
+
+Further example notebooks can be found at https://github.com/ZwickyTransientFacility/simsurvey-examples
+
+
