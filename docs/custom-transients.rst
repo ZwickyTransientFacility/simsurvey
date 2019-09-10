@@ -82,6 +82,7 @@ Hsiao template, showing all steps required for it.
 ::
 
    import numpy as np
+   import os
    import sncosmo
    import simsurvey
    from astropy.cosmology import Planck15
@@ -109,7 +110,7 @@ Hsiao template, showing all steps required for it.
                          mag=(-18., 1.),
                          r_v=2., ebv_rate=0.11,
                          alpha=1.3,
-			 cosmo=Planck15
+			 cosmo=Planck15,
                          **kwargs):
        """
        """
