@@ -1207,6 +1207,7 @@ class LightcurveCollection( BaseObject ):
                                    p_bins=p_bins)
         
         lcs._properties["meta_rejected"] = deepcopy(self._properties['meta_rejected'])
+        lcs._properties["meta_notobserved"] = deepcopy(self._properties['meta_notobserved'])
         
         for k in range(len(self.lcs)):
             lc = self._get_lc_(k)
