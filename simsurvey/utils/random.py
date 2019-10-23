@@ -3,6 +3,11 @@
 """This module contains functions for drawing random redshifts and sky coordinates"""
 
 import numpy as np
+import healpy as hp
+import scipy
+from scipy.stats import norm
+from astropy.coordinates import Distance
+from astropy import units as u
 import random
 
 _d2r = np.pi / 180 
@@ -22,6 +27,29 @@ def radec(npoints=1,
                        ra_range=ra_range,dec_range=dec_range,
                        output_frame="j2000",**kwargs))
 
+def radecz_skymap(npoints=1,skymap={}):
+    """
+    """
+    prob = skymap["prob"]
+    prob[~np.isfinite(skymap["distmu"])] = 0.
+    prob[skymap["distmu"] < 0.] = 0.
+    npix = len(prob)
+    nside = hp.npix2nside(npix)
+    prob = prob / np.sum(prob)
+    distn = scipy.stats.rv_discrete(values=(np.arange(npix), prob))
+    ipix = distn.rvs(size=npoints)
+    ra, dec = hp.pix2ang(nside, ipix, lonlat=True)
+
+    zs = []
+    for ii in ipix:
+        dist = -1
+        while (dist < 0):
+            dist = norm(skymap["distmu"][ii],skymap["distsigma"][ii]).rvs()
+        zs.append(Distance(dist * u.Mpc).z)
+    zs = np.array(zs)
+
+    return ra, dec, zs
+
 def redshift(npoints, zrange,
              pdfkind="flat",
              **kwargs):
@@ -31,7 +59,7 @@ def redshift(npoints, zrange,
     # to parse easily the z_pdf and z_pdf_bins.
     # This through "pdfkind"
     # We can imagine having a string parser that is None
-    
+
     if pdfkind.lower() in ["flat","None"]:
         pdfkind = None
         
@@ -47,12 +75,11 @@ def redshift(npoints, zrange,
     
     return np.asarray(simulate_z(npoints,zrange,z_pdf=z_pdf,z_pdf_bins=z_pdf_bins))
 
-
 # ============================== #
 # = Low level Functions        = #
 # ============================== #
 def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
-                output_frame='galactic',radius=None):
+                output_frame='galactic',radius=None,skymap=None):
     """
     Draw a set of coordinates for particular RA and Dec range with MW exclusion 
 
@@ -70,12 +97,12 @@ def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
     # ----------------------- #
     # --                   -- #
     # ----------------------- #
-    def _draw_radec_(Npoints_,ra_range_,dec_sin_range_):
+    def _draw_radec_(Npoints_,ra_range_,dec_sin_range_,skymap=None):
         """
         """
         ra = np.random.random(Npoints_)*(ra_range_[1] - ra_range_[0]) + ra_range_[0]
         dec = np.arcsin(np.random.random(Npoints_)*(dec_sin_range_[1] - dec_sin_range_[0]) + dec_sin_range_[0]) / _d2r
-
+ 
         return ra,dec
 
     def _draw_without_MW_(Npoints_,ra_range_,dec_sin_range_,MW_exclusion_,radius_):
@@ -121,7 +148,7 @@ def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
         return _draw_without_MW_(Npoints, ra_range, dec_sin_range,
                                  MW_exclusion, radius)
     else:
-        ra,dec = _draw_radec_(Npoints, ra_range, dec_sin_range)
+        ra,dec = _draw_radec_(Npoints, ra_range, dec_sin_range, skymap=skymap)
         if output_frame == 'galactic':
             return radec2gcs(ra,dec)
         else:

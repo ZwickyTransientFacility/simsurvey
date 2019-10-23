@@ -207,7 +207,8 @@ class TransientGenerator( BaseObject ):
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90), apply_mwebv=True,
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01,
-               seed=None, cosmo=Planck15):
+               seed=None, cosmo=Planck15,
+               skymap=None):
         """
         """
         # == Add the Input Test == #
@@ -226,7 +227,8 @@ class TransientGenerator( BaseObject ):
             self.set_event_parameters(update=False,
                                       **{"ra_range":ra_range, "dec_range":dec_range,
                                          "zcmb_range":zrange, "mjd_range":mjd_range,
-                                         "mw_exclusion":mw_exclusion})
+                                         "mw_exclusion":mw_exclusion,
+                                         "skymap":skymap})
 
             self.set_transient_parameters(ratekind=ratekind, ratefunc=ratefunc,
                                           transient=transient, template=template,
@@ -285,7 +287,7 @@ class TransientGenerator( BaseObject ):
         Set update to True to update the derived properties
         """
         known_event_prop = ["ra_range","dec_range","zcmb_range",
-                            "mw_exclusion","mjd_range"]
+                            "mw_exclusion","mjd_range","skymap"]
 
         for k in kwargs.keys():
             if k not in known_event_prop:
@@ -610,13 +612,21 @@ class TransientGenerator( BaseObject ):
                 list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
                                       self.zcmb_range[0], self.zcmb_range[1],
                                       ratefunc=self.ratefunc))
-            
+           
         self.simul_parameters["mjd"] = self._simulate_mjd_()
         self.simul_parameters["ra"], self.simul_parameters["dec"] = \
           random.radec(self.ntransient,
                        ra_range=self.ra_range,
                        dec_range=self.dec_range,
                        mw_exclusion=self._get_event_property_("mw_exclusion"))
+
+        if self.event_coverage["skymap"] is not None:
+            self.simul_parameters["ra"], \
+            self.simul_parameters["dec"], \
+            self.simul_parameters["zcmb"] = \
+                random.radecz_skymap(self.ntransient,
+                                     self.event_coverage["skymap"])
+
         self._derived_properties['mwebv'] = None
 
         if "lightcurve_prop" in self.transient_coverage.keys():
