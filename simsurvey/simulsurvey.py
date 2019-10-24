@@ -23,6 +23,7 @@ from astropy.table         import Table, vstack, hstack
 
 from propobject import BaseObject
 
+from .version import __VERSION__ as __version__
 from .utils.tools   import kwargs_update, range_args, range_length, get_progressbar
 from .utils.skybins import SurveyField, SurveyFieldBins 
 
@@ -147,6 +148,8 @@ class SimulSurvey( BaseObject ):
                             lcs.add(self._get_lightcurve_(p, obs, k))
                             bar.update()
                         else:
+                            p['idx_orig'] = k
+                            lcs._add_meta_info_(p, suffix='_notobserved')
                             bar.update()
 
                 progress_bar_success = True
@@ -159,6 +162,9 @@ class SimulSurvey( BaseObject ):
             for k, p, obs in gen:
                 if obs is not None:
                     lcs.add(self._get_lightcurve_(p, obs, k))
+                else:
+                    p['idx_orig'] = k
+                    lcs._add_meta_info_(p, suffix='_notobserved')
 
         return lcs
             
@@ -1047,8 +1053,8 @@ class LightcurveCollection( BaseObject ):
     """
     __nature__ = "LightcurveCollection"
 
-    PROPERTIES         = ['lcs', 'meta', 'meta_rejected']
-    SIDE_PROPERTIES    = ['threshold', 'n_det', 'p_bins']
+    PROPERTIES         = ['lcs', 'meta', 'meta_rejected', 'meta_notobserved']
+    SIDE_PROPERTIES    = ['threshold', 'n_det', 'p_bins', 'version']
     DERIVED_PROPERTIES = ['stats']
 
     def __init__(self, threshold=5., n_det=2,
@@ -1061,6 +1067,9 @@ class LightcurveCollection( BaseObject ):
 
         """
         self.__build__()
+
+        self._side_properties['version'] = __version__ 
+        
         self.set_threshold(threshold)
         self.set_n_det(n_det)
         self.set_p_bins(p_bins)
@@ -1102,6 +1111,8 @@ class LightcurveCollection( BaseObject ):
         self._properties['meta'] = loaded['meta']
         if 'meta_rejected' in loaded.keys():
             self._properties['meta_rejected'] = loaded['meta_rejected']
+        if 'meta_notobserved' in loaded.keys():
+            self._properties['meta_notobserved'] = loaded['meta_notobserved']
         if 'stats' in loaded.keys():
             self._derived_properties['stats'] = loaded['stats']
         if 'side' in loaded.keys():
@@ -1113,6 +1124,7 @@ class LightcurveCollection( BaseObject ):
         pickle.dump({'lcs': self._properties["lcs"],
                      'meta': self._properties["meta"],
                      'meta_rejected': self._properties["meta_rejected"],
+                     'meta_notobserved': self._properties["meta_notobserved"],
                      'stats': self._derived_properties["stats"],
                      'side': self._side_properties},
                     open(filename, 'wb'))
@@ -1141,11 +1153,13 @@ class LightcurveCollection( BaseObject ):
         tables = [
             Table(self.meta),
             Table(self.meta_rejected),
+            Table(self.meta_notobserved),
             self.tab_stats
         ]
         filenames = [
             os.path.join(file_base, 'tab_meta.fits'),
             os.path.join(file_base, 'tab_meta_rejected.fits'),
+            os.path.join(file_base, 'tab_meta_notobserved.fits'),
             os.path.join(file_base, 'tab_stats.fits')
         ]
 
@@ -1193,6 +1207,7 @@ class LightcurveCollection( BaseObject ):
                                    p_bins=p_bins)
         
         lcs._properties["meta_rejected"] = deepcopy(self._properties['meta_rejected'])
+        lcs._properties["meta_notobserved"] = deepcopy(self._properties['meta_notobserved'])
         
         for k in range(len(self.lcs)):
             lc = self._get_lc_(k)
@@ -1234,7 +1249,6 @@ class LightcurveCollection( BaseObject ):
     # ---------------------- #
     # - Add Methods        - #
     # ---------------------- #
-
     def _add_lcs_(self, lcs):
         """
         """
@@ -1277,12 +1291,12 @@ class LightcurveCollection( BaseObject ):
         """
         """
         meta_name = 'meta%s'%suffix
-
+        
         if self._properties[meta_name] is None:
             keys = [k for k in info.keys()]
             dtypes = [type(v) for v in info.values()]
             self._create_meta_(keys, dtypes, suffix)
-
+            
         for k in self._properties[meta_name].keys():
             self._properties[meta_name][k] = np.append(
                 self._properties[meta_name][k],
@@ -1419,9 +1433,18 @@ class LightcurveCollection( BaseObject ):
         return dict_to_array(self._properties["meta_rejected"])
 
     @property
+    def meta_notobserved(self):
+        """numpy structured array with of meta parameters
+        of transients that were not observed
+        """
+        if self._properties["meta_notobserved"] is None:
+            return None
+        return dict_to_array(self._properties["meta_notobserved"])
+    
+    @property
     def meta_full(self):
         """numpy structured array with of meta parameters
-        of all simulated transients
+        of all simulated transients that were observed
         """
         if (self._properties["meta"] is not None and
             self._properties["meta_rejected"] is not None):
@@ -1484,6 +1507,13 @@ class LightcurveCollection( BaseObject ):
     def get_tab_p_binned(self, key):
         """"""
         return Table(self.stats['p_binned'][key])
+
+    @property
+    def version(self):
+        """"""
+        if 'version' not in self._side_properties.keys():
+            return None
+        return self._side_properties['version']
 
 # ========================= #
 # = Lightcurve statistics = #
