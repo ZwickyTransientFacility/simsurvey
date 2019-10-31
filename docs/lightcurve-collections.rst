@@ -101,8 +101,13 @@ the dictionaries ``lcs.meta`` and ``lcs.stats``. These contain only
 information about the transients that passed the detection
 criterion. The meta information of rejected lightcurves is stored in
 ``lcs.meta_rejected`` and the complete list of parameters can be
-accessed via ``lcs.meta_full``. This full list of parameters can the
-e.g. be used to determine the survey efficiency.
+accessed via ``lcs.meta_full``.  This full list of parameters can the
+e.g. be used to determine the survey efficiency. Note that these lists
+only contain the parameters of transients, for which a lightcurves
+were simulated. All other simulation parameters, i.e. those of
+transients that did not lie in an observed region of the sky or that
+were not bright when their fields were observed, can be found in
+`lcs.meta_notobserved`.
   
 Filtering the Lightcurves
 =========================

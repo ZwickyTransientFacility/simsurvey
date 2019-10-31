@@ -195,6 +195,12 @@ class TransientGenerator( BaseObject ):
         cosmo [astropy.Cosmology]       cosmology model used generate the redshift distribution
                                         (note: this does not change the cosmology used to convert
                                         the luminosity function to model parameters)
+
+        skymap: [dict]                  dictionary representing a skymap typically from a GW event,
+                                        should contain three arrays, 'prob', 'distmu', and 'distsigma', 
+                                        specifying the probability of the transient lying in a particular
+                                        HEALPix pixel, and the mean and standard deviation of a Gaussian
+                                        distribution of the distance (in Mpc) of a transient in that pixel.
         """
         self.__build__()
         if empty:

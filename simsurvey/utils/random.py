@@ -3,12 +3,17 @@
 """This module contains functions for drawing random redshifts and sky coordinates"""
 
 import numpy as np
-import healpy as hp
 import scipy
 from scipy.stats import norm
 from astropy.coordinates import Distance
 from astropy import units as u
 import random
+
+try:
+    import healpy as hp
+    HEALPY_IMPORTED = True
+except ImportError:
+    HEALPY_IMPORTED = False
 
 _d2r = np.pi / 180 
 
@@ -30,6 +35,9 @@ def radec(npoints=1,
 def radecz_skymap(npoints=1,skymap={}):
     """
     """
+    if not HEALPY_IMPORTED:
+        raise ImportError("healpy could not be imported. Please make sure it is installed.")
+        
     prob = skymap["prob"]
     prob[~np.isfinite(skymap["distmu"])] = 0.
     prob[skymap["distmu"] < 0.] = 0.

@@ -73,6 +73,21 @@ The function can further have any number of keyword argument, values
 for which can be provided as a dictionary as shown in the example
 below.
 
+Using a Sky Map for Coordinate Generation
+=========================================
+
+Instead of limiting the cordinates as simple ranges of RA and Dec, a
+HEALPix-based skymap can be passed to the `TransientGenerator` using
+the argument `skymap`. The expected input is a dictionary containing
+three arrays:
+
+- `prob`: Probability for the transient to be located in a given
+  pixel.
+- `distmu`: Mean of a Gaussian distribution of the distance (in Mpc)
+  for each pixel.
+- `distsigma`: Standard deviation of the Gaussian distribution of the
+  distance.
+
 Example
 =======
 
