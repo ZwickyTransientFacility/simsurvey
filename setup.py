@@ -11,9 +11,9 @@ DISTNAME = 'simsurvey'
 AUTHOR = 'Simsurvey Developers'
 MAINTAINER = 'Ulrich Feindt' 
 MAINTAINER_EMAIL = 'ulrich.feindt@fysik.su.se'
-URL = 'https://github.com/ufeindt/simsurvey/'
+URL = 'https://github.com/ZwickyTransientFacility/simsurvey/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/ufeindt/simsurvey/tarball/0.7.0'
+DOWNLOAD_URL = 'https://github.com/ufeindt/ZwickyTransientFacility/tarball/0.7.0'
 VERSION = '0.7.0'
 
 try:
