@@ -27,7 +27,7 @@ The required packages will be installed automatically if you install simsurvey u
 
 _Optional_
 - matplotlib (pip install matplotlib) _for plotting the survey results_
-
+- healpy (pip install matplotlib) _for using HEALPix-based sky maps_
 Examples
 --------
 

@@ -25,8 +25,8 @@ by an astronomical transient survey.
 More
 ====
 
-* The source code is available on github: https://github.com/ufeindt/simsurvey
-* Report bugs, request features: https://github.com/ufeindt/simsurvey/issues
+* The source code is available on github: https://github.com/ZwickyTransientFacility/simsurvey
+* Report bugs, request features: https://github.com/ZwickyTransientFacility/simsurvey/issues
 
 Indices and tables
 ==================
