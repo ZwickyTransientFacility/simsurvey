@@ -631,7 +631,10 @@ class TransientGenerator( BaseObject ):
             self.simul_parameters["dec"], \
             self.simul_parameters["zcmb"] = \
                 random.radecz_skymap(self.ntransient,
-                                     self.event_coverage["skymap"])
+                                     self.event_coverage["skymap"],
+                                     ra_range=self.ra_range,
+                                     dec_range=self.dec_range,
+                                     zcmb_range=self.zcmb_range)
 
         self._derived_properties['mwebv'] = None
 
