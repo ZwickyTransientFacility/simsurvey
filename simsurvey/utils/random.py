@@ -32,7 +32,8 @@ def radec(npoints=1,
                        ra_range=ra_range,dec_range=dec_range,
                        output_frame="j2000",**kwargs))
 
-def radecz_skymap(npoints=1,skymap={}):
+def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
+                  zcmb_range=None):
     """
     """
     if not HEALPY_IMPORTED:
@@ -43,6 +44,19 @@ def radecz_skymap(npoints=1,skymap={}):
     prob[skymap["distmu"] < 0.] = 0.
     npix = len(prob)
     nside = hp.npix2nside(npix)
+
+    theta, phi = hp.pix2ang(nside, np.arange(npix))
+    ra_map = np.rad2deg(phi)
+    dec_map = np.rad2deg(0.5*np.pi - theta)
+
+    if not ra_range is None:
+        idx = np.where((ra_map < ra_range[0]) | (ra_map > ra_range[1]))[0]
+        prob[idx] = 0.0
+
+    if not dec_range is None:
+        idx = np.where((dec_map < dec_range[0]) | (dec_map > dec_range[1]))[0]
+        prob[idx] = 0.0
+
     prob = prob / np.sum(prob)
     distn = scipy.stats.rv_discrete(values=(np.arange(npix), prob))
     ipix = distn.rvs(size=npoints)
@@ -50,10 +64,16 @@ def radecz_skymap(npoints=1,skymap={}):
 
     zs = []
     for ii in ipix:
-        dist = -1
-        while (dist < 0):
+        z = -1
+        while (z < 0):
             dist = norm(skymap["distmu"][ii],skymap["distsigma"][ii]).rvs()
-        zs.append(Distance(dist * u.Mpc).z)
+            if dist < 0:
+                continue
+            z = Distance(dist * u.Mpc).z
+            if not zcmb_range is None:
+                if (z < zcmb_range[0]) | (z > zcmb_range[1]):
+                    z = -1
+        zs.append(z)
     zs = np.array(zs)
 
     return ra, dec, zs
