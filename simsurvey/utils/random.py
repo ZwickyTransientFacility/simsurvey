@@ -7,6 +7,7 @@ from scipy.stats import norm, rv_discrete
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from astropy.cosmology import Planck15, z_at_value
 from astropy import units as u
+from ligo.skymap import distance
 import random
 
 try:
@@ -73,13 +74,16 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         
     z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
     z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
+
+    #calculate the moments from distmu, distsigma and distnorm
+    mom_mean, mom_std, mom_norm = distance.parameters_to_moments(skymap["distmu"],skymap["distsigma"])
     
     dists = -np.ones(npoints)
     dists_in_range = np.zeros(npoints, dtype=bool)
     while not np.all(dists_in_range):
         ipix_tmp = ipix[~dists_in_range]
-        dists[~dists_in_range] = (skymap['distmu'][ipix_tmp] + 
-                                  skymap['distsigma'][ipix_tmp] * 
+        dists[~dists_in_range] = (mom_mean[ipix_tmp] + 
+                                  mom_std[ipix_tmp] * 
                                   np.random.normal(size=np.sum(~dists_in_range)))
         dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
          
