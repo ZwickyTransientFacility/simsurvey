@@ -33,7 +33,7 @@ def radec(npoints=1,
                        output_frame="j2000",**kwargs))
 
 def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
-                  zcmb_range=None, cosmo=Planck15):
+                  zcmb_range=None, cosmo=Planck15, batch_size=1000):
     """
     """
     if not HEALPY_IMPORTED:
