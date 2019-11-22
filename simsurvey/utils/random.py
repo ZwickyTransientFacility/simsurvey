@@ -3,9 +3,9 @@
 """This module contains functions for drawing random redshifts and sky coordinates"""
 
 import numpy as np
-import scipy
-from scipy.stats import norm
-from astropy.coordinates import Distance
+from scipy.stats import norm, rv_discrete
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
+from astropy.cosmology import Planck15, z_at_value
 from astropy import units as u
 import random
 
@@ -33,7 +33,7 @@ def radec(npoints=1,
                        output_frame="j2000",**kwargs))
 
 def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
-                  zcmb_range=None):
+                  zcmb_range=None, cosmo=Planck15, batch_size=1000):
     """
     """
     if not HEALPY_IMPORTED:
@@ -58,23 +58,32 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         prob[idx] = 0.0
 
     prob = prob / np.sum(prob)
-    distn = scipy.stats.rv_discrete(values=(np.arange(npix), prob))
-    ipix = distn.rvs(size=npoints)
+    distn = rv_discrete(values=(np.arange(npix), prob))
+    ipix = distn.rvs(size=min(npoints, batch_size))
+    while len(ipix) < npoints:
+        ipix = np.append(ipix, distn.rvs(size=min(npoints-len(ipix), batch_size)))
     ra, dec = hp.pix2ang(nside, ipix, lonlat=True)
 
-    zs = []
-    for ii in ipix:
-        z = -1
-        while (z < 0):
-            dist = norm(skymap["distmu"][ii],skymap["distsigma"][ii]).rvs()
-            if dist < 0:
-                continue
-            z = Distance(dist * u.Mpc).z
-            if not zcmb_range is None:
-                if (z < zcmb_range[0]) | (z > zcmb_range[1]):
-                    z = -1
-        zs.append(z)
-    zs = np.array(zs)
+    # If no zcmb_range provided set the upper limit to 1e9 Mpc (z >> 1000)
+    if zcmb_range is not None:
+        dist_range = [cosmo.luminosity_distance(zcmb_range[0]).value,
+                      cosmo.luminosity_distance(zcmb_range[1]).value]
+    else:
+        dist_range = [0, 1e9]
+        
+    z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
+    z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
+    
+    dists = -np.ones(npoints)
+    dists_in_range = np.zeros(npoints, dtype=bool)
+    while not np.all(dists_in_range):
+        ipix_tmp = ipix[~dists_in_range]
+        dists[~dists_in_range] = (skymap['distmu'][ipix_tmp] + 
+                                  skymap['distsigma'][ipix_tmp] * 
+                                  np.random.normal(size=np.sum(~dists_in_range)))
+        dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
+         
+    zs = z_d(dists)
 
     return ra, dec, zs
 
