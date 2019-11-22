@@ -634,7 +634,8 @@ class TransientGenerator( BaseObject ):
                                      self.event_coverage["skymap"],
                                      ra_range=self.ra_range,
                                      dec_range=self.dec_range,
-                                     zcmb_range=self.zcmb_range)
+                                     zcmb_range=self.zcmb_range,
+                                     cosmo=self.cosmo)
 
         self._derived_properties['mwebv'] = None
 
