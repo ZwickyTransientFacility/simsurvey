@@ -7,7 +7,6 @@ from scipy.stats import norm, rv_discrete
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from astropy.cosmology import Planck15, z_at_value
 from astropy import units as u
-from ligo.skymap import distance
 import random
 
 try:
@@ -15,6 +14,12 @@ try:
     HEALPY_IMPORTED = True
 except ImportError:
     HEALPY_IMPORTED = False
+
+try:
+    from ligo.skymap import distance
+    LIGO_SKYMAP_IMPORTED = True
+except ImportError:
+    LIGO_SKYMAP_IMPORTED = False
 
 _d2r = np.pi / 180 
 
@@ -39,6 +44,8 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
     """
     if not HEALPY_IMPORTED:
         raise ImportError("healpy could not be imported. Please make sure it is installed.")
+    if not LIGO_SKYMAP_IMPORTED:
+        raise ImportError("ligo.skymap could not be imported. Please make sure it is installed.")
         
     prob = skymap["prob"]
     prob[~np.isfinite(skymap["distmu"])] = 0.
