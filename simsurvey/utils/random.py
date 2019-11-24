@@ -15,6 +15,12 @@ try:
 except ImportError:
     HEALPY_IMPORTED = False
 
+try:
+    from ligo.skymap import distance
+    LIGO_SKYMAP_IMPORTED = True
+except ImportError:
+    LIGO_SKYMAP_IMPORTED = False
+
 _d2r = np.pi / 180 
 
 __all__ = ["radec", "redshift",
@@ -38,6 +44,8 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
     """
     if not HEALPY_IMPORTED:
         raise ImportError("healpy could not be imported. Please make sure it is installed.")
+    if not LIGO_SKYMAP_IMPORTED:
+        raise ImportError("ligo.skymap could not be imported. Please make sure it is installed.")
         
     prob = skymap["prob"]
     prob[~np.isfinite(skymap["distmu"])] = 0.
@@ -73,13 +81,16 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         
     z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
     z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
+
+    #calculate the moments from distmu, distsigma and distnorm
+    mom_mean, mom_std, mom_norm = distance.parameters_to_moments(skymap["distmu"],skymap["distsigma"])
     
     dists = -np.ones(npoints)
     dists_in_range = np.zeros(npoints, dtype=bool)
     while not np.all(dists_in_range):
         ipix_tmp = ipix[~dists_in_range]
-        dists[~dists_in_range] = (skymap['distmu'][ipix_tmp] + 
-                                  skymap['distsigma'][ipix_tmp] * 
+        dists[~dists_in_range] = (mom_mean[ipix_tmp] + 
+                                  mom_std[ipix_tmp] * 
                                   np.random.normal(size=np.sum(~dists_in_range)))
         dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
          
