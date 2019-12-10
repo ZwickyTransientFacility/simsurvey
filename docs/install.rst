@@ -30,10 +30,10 @@ Install latest development version
 ==================================
 
 simsurvey is being developed `on github
-<https://github.com/ufeindt/simsurvey>`_. To get the latest
+<https://github.com/ZwickyTransientFacility/simsurvey>`_. To get the latest
 development version using ``git``::
 
-    git clone git://github.com/ufeindt/simsurvey.git
+    git clone git://github.com/ZwickyTransientFacility/simsurvey.git
     cd simsurvey
 
 then::
