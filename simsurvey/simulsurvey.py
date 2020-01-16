@@ -213,7 +213,7 @@ class SimulSurvey( BaseObject ):
                 fluxchol = np.linalg.cholesky(fluxcov)
                 flux = lc['flux'] + fluxchol.dot(np.random.randn(len(lc)))
             else:
-                flux = np.asarray(lc['flux'])
+                flux = lc['flux']
 
             # Apply blinded bias if given
             if self.blinded_bias is not None:
