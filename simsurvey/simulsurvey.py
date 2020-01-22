@@ -1528,7 +1528,7 @@ def get_p_det_last(lc, thr=5., n_det=2):
     """
     mask_det = lc['flux']/lc['fluxerr'] > thr
 
-    if np.sum(mask_det) > n_det:
+    if np.sum(mask_det) >= n_det:
         k__ = np.where(mask_det)[0]
         p0 = lc['time'][k__][n_det-1] - lc.meta['t0']
         if k__[0] > 0:
