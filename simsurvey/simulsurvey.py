@@ -53,7 +53,6 @@ class SimulSurvey( BaseObject ):
                  instprop=None, blinded_bias=None,
                  phase_range=None, empty=False,
                  threshold=5., n_det=2, seed=None,
-                 fluxnoise=True,
                  p_bins=np.arange(-30, 71, 5)):
         """
         Parameters:
@@ -78,7 +77,6 @@ class SimulSurvey( BaseObject ):
         self.set_threshold(threshold)
         self.set_n_det(n_det)
         self.set_p_bins(p_bins)
-        self.fluxnoise = fluxnoise
         
     def create(self, generator, plan, instprop, blinded_bias, phase_range, seed):
         """
@@ -209,11 +207,8 @@ class SimulSurvey( BaseObject ):
                                                err**2)
 
             # Add random (but correlated) noise to the fluxes
-            if self.fluxnoise:
-                fluxchol = np.linalg.cholesky(fluxcov)
-                flux = lc['flux'] + fluxchol.dot(np.random.randn(len(lc)))
-            else:
-                flux = lc['flux']
+            fluxchol = np.linalg.cholesky(fluxcov)
+            flux = lc['flux'] + fluxchol.dot(np.random.randn(len(lc)))
 
             # Apply blinded bias if given
             if self.blinded_bias is not None:
