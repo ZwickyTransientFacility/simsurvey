@@ -787,7 +787,8 @@ class SurveyPlan( BaseObject ):
 
         if zp is None:
             zp = np.array([np.nan for r in ra])
-            warnings.warn('None zero point was given. Default: zp = 30', UserWarning)
+            warnings.warn('None zeropoint was given. Default: zp = 30', UserWarning)
+            warnings.warn('Zeropoint will be required in future versions of simsursevy', FutureWarning)
         if ccd is None:
             ccd = np.array([np.nan for r in ra])
         if comment is None:
