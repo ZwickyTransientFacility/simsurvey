@@ -1,8 +1,7 @@
 #! /usr/bin/env python
 #
 # Copyright (C) 2015-20 simsurvey Developers
-
-from simsurvey.version import __VERSION__ as __version__
+import simsurvey.version as sv
 
 DESCRIPTION = "simsurvey: Basic tools for simulating astronomical surveys"
 LONG_DESCRIPTION = """\
@@ -15,8 +14,8 @@ MAINTAINER = 'Ulrich Feindt, Ana Sagués Carracedo'
 MAINTAINER_EMAIL = 'ufeindt@gmail.com, ana.sagues-carracedo@fysik.su.se'
 URL = 'https://github.com/ZwickyTransientFacility/simsurvey/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/ufeindt/ZwickyTransientFacility/tarball/'+__version__
-VERSION = __version__
+DOWNLOAD_URL = 'https://github.com/ufeindt/ZwickyTransientFacility/tarball/'+sv.__VERSION__
+VERSION = sv.__VERSION__
 
 try:
     from setuptools import setup, find_packages
