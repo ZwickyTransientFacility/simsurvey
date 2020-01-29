@@ -690,6 +690,10 @@ class SurveyPlan( BaseObject ):
             if self.height < min_height:
                 self._properties["height"] = min_height
 
+        elif self.ccds is None and obs_ccd is not None:
+            raise AttributeError("ccds not set")
+
+
         if fields is not None:
             self.set_fields(**fields)
 
