@@ -25,7 +25,7 @@ from propobject import BaseObject
 
 from .version import __VERSION__ as __version__
 from .utils.tools   import kwargs_update, range_args, range_length, get_progressbar
-from .utils.skybins import SurveyField, SurveyFieldBins 
+from .utils.skybins import SurveyField, SurveyFieldBins
 
 _d2r = np.pi/180
 
@@ -53,6 +53,7 @@ class SimulSurvey( BaseObject ):
                  instprop=None, blinded_bias=None,
                  phase_range=None, empty=False,
                  threshold=5., n_det=2, seed=None,
+                 sourcenoise=True,
                  p_bins=np.arange(-30, 71, 5)):
         """
         Parameters:
@@ -63,9 +64,9 @@ class SimulSurvey( BaseObject ):
         Optional parameters:
         -------------------
         instprop: dictionary with registered bandpass names and their default zp, zpsys and gain
-        blinded_bias: dictionary with registered bandpass names and a number m representing a magnitude shift, 
+        blinded_bias: dictionary with registered bandpass names and a number m representing a magnitude shift,
                       all fluxes in thar band will be shifted by the same random shift drawn from a uniform
-                      distribution with the interval [-m, m] 
+                      distribution with the interval [-m, m]
 
         """
         self.__build__()
@@ -77,7 +78,8 @@ class SimulSurvey( BaseObject ):
         self.set_threshold(threshold)
         self.set_n_det(n_det)
         self.set_p_bins(p_bins)
-        
+        self.sourcenoise = sourcenoise
+
     def create(self, generator, plan, instprop, blinded_bias, phase_range, seed):
         """
         """
@@ -95,8 +97,8 @@ class SimulSurvey( BaseObject ):
             self.set_phase_range(phase_range)
 
         if seed is not None:
-            np.random.seed(seed) 
-            
+            np.random.seed(seed)
+
     # =========================== #
     # = Main Methods            = #
     # =========================== #
@@ -105,11 +107,11 @@ class SimulSurvey( BaseObject ):
     # - Get Methods        - #
     # ---------------------- #
     def get_lightcurves(self, *args, **kwargs):
-        """Generate lightcurves based on survey plan and random transient 
+        """Generate lightcurves based on survey plan and random transient
         lightcurve parameters
-        
+
         args can be start, end, and step as for range()
-        
+
         Kwargs:
         progressbar -- [bool] Show a progress bar usign `astropy.utils.console`
         notebook -- [bool] use in combination with progressbar if running
@@ -133,11 +135,11 @@ class SimulSurvey( BaseObject ):
                    self._get_observations_(*args))
 
         progress_bar_success = False
-        
+
         if progress_bar:
             self._assign_obs_fields_(progress_bar=True, notebook=notebook)
             self._assign_non_field_obs_(progress_bar=True, notebook=notebook)
-            
+
             try:
                 print('Generating lightcurves')
                 ntransient = range_length(*args)
@@ -167,10 +169,10 @@ class SimulSurvey( BaseObject ):
                     lcs._add_meta_info_(p, suffix='_notobserved')
 
         return lcs
-            
+
     def _get_lightcurve_(self, p, obs, idx_orig=None):
         """
-        """        
+        """
         if obs is not None:
             ra, dec, mwebv_sfd98 = p.pop('ra'), p.pop('dec'), p.pop('mwebv_sfd98')
 
@@ -190,8 +192,11 @@ class SimulSurvey( BaseObject ):
 
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
-            fluxerr = np.sqrt(obs['skynoise']**2 +
+            if self.sourcenoise:
+                fluxerr = np.sqrt(obs['skynoise']**2 +
                               np.abs(lc['flux']) / obs['gain'])
+            else:
+                fluxerr = obs['skynoise']
 
             fluxcov = np.diag(fluxerr**2)
             save_cov = False
@@ -202,7 +207,7 @@ class SimulSurvey( BaseObject ):
                     err = self.instruments[band]['err_calib']
                     for k0 in idx:
                         for k1 in idx:
-                            fluxcov[k0,k1] += (lc['flux'][k0] * 
+                            fluxcov[k0,k1] += (lc['flux'][k0] *
                                                lc['flux'][k1] *
                                                err**2)
 
@@ -284,7 +289,7 @@ class SimulSurvey( BaseObject ):
                       "desr":{"gain":1,"zp":30,"zpsys":'ab',"err_calib":0.005}}
         """
         prop = deepcopy(properties)
-    
+
         if prop is not None:
             for band, d_ in prop.items():
                 gain = d_.pop("gain", 1.)
@@ -308,7 +313,7 @@ class SimulSurvey( BaseObject ):
         """Expect input dict of band and bounds maximum bias
         Bias will be drawn from uniform distribution and applied to the lightcurves
         """
-        self._side_properties['blinded_bias'] = {k: np.random.uniform(-v, v) 
+        self._side_properties['blinded_bias'] = {k: np.random.uniform(-v, v)
                                                  for k, v in bias.items()}
 
     def set_phase_range(self, phase_range):
@@ -345,10 +350,10 @@ class SimulSurvey( BaseObject ):
 
     # =========================== #
     # = Internal Methods        = #
-    # =========================== #           
+    # =========================== #
     def _get_observations_(self, *args):
         """
-        """  
+        """
         # -------------
         # - Input test
         if self.plan is None or self.instruments is None:
@@ -366,7 +371,7 @@ class SimulSurvey( BaseObject ):
         # - Based on the model get a reasonable time scale for each transient
         mjd = self.generator.mjd
         z = np.array(self.generator.zcmb)
-        mjd_range = [mjd + self.phase_range[0] * (1+z), 
+        mjd_range = [mjd + self.phase_range[0] * (1+z),
                      mjd + self.phase_range[1] * (1+z)]
 
         # -----------------------
@@ -396,7 +401,7 @@ class SimulSurvey( BaseObject ):
                 data.append([self.instruments[b]["zp"]
                              for b in obs["band"]])
                 name.append("zp")
-            
+
             if len(obs) > 0:
                 yield hstack((obs,Table(data=data, names=names)))
             else:
@@ -439,7 +444,7 @@ class SimulSurvey( BaseObject ):
         self._derived_properties["non_field_obs"] = None
         self._derived_properties["non_field_obs_ccd"] = None
         self._derived_properties["non_field_obs_exist"] = None
-    
+
     # =========================== #
     # = Properties and Settings = #
     # =========================== #
@@ -529,7 +534,7 @@ class SimulSurvey( BaseObject ):
         """
         """
         self._side_properties["p_bins"] = p_bins
-        
+
     # ------------------
     # - Derived values
     @property
@@ -556,7 +561,7 @@ class SimulSurvey( BaseObject ):
         if (self._derived_properties["non_field_obs"] is None
             and self.non_field_obs_exist is False):
             self._assign_non_field_obs_()
-            
+
         if self._derived_properties["non_field_obs"] is None:
             self._derived_properties["non_field_obs_exist"] = False
         else:
@@ -572,7 +577,7 @@ class SimulSurvey( BaseObject ):
         if self.non_field_obs_exist is False:
             return [None for k in range(self.generator.ntransient)]
         return self._derived_properties["non_field_obs_ccds"]
-        
+
     @property
     def non_field_obs_exist(self):
         """Avoid checking for non-field pointings more than once."""
@@ -588,7 +593,7 @@ class SurveyPlan( BaseObject ):
     Survey Plan
     contains the list of observation times, bands and pointings and
     can return that times and bands, which a transient is observed at/with.
-    A list of fields can be given to simplify adding observations and avoid 
+    A list of fields can be given to simplify adding observations and avoid
     lookups whether an object is in a certain field.
     Currently assumes a single instrument, especially for FoV width and height.
     """
@@ -598,7 +603,7 @@ class SurveyPlan( BaseObject ):
     SIDE_PROPERTIES    = ["fields", "ccds"]
     DERIVED_PROPERTIES = []
 
-    def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
+    def __init__(self, time=None, ra=None, dec=None, band=None, skynoise=None,
                  obs_field=None, obs_ccd=None, zp=None, comment=None,
                  width=7.295, height=7.465, fields=None, empty=False,
                  load_opsim=None, **kwargs):
@@ -606,52 +611,52 @@ class SurveyPlan( BaseObject ):
         Parameters:
         ----------
         time: [np.array-like]         pointing times in units of day (e.g. MJD), required
-        
+
         band: [list-like]             names of bandpasses (need to be registered in `sncosmo`),
                                       required
-        
+
         skynoise: [np.array_like]     skynoise values as used for `sncosmo.realize_lcs`,
-                                      to convert from e.g. 5-sigma limiting magnitude, use 1/5 
+                                      to convert from e.g. 5-sigma limiting magnitude, use 1/5
                                       of corresponding flux given the zero point used, i.e.
                                       10 ** (0.4 * (zp - limmag)) / 5, required
 
-        
-        obs_fields: [np.array-like]   observed field number, required unless RA and Dec 
+
+        obs_fields: [np.array-like]   observed field number, required unless RA and Dec
                                       are provided for individual pointings
-        
+
         ra: [np.array-like]           observed RA in deg, required unless field numbers are
                                       provided
-        
+
         dec: [np.array-like]          observed Dec in deg, required unless field numbers are
                                       provided
-        
+
 
         obs_ccd: [np.array-like]      individual CCD numbers can be provided to allow
                                       varying skynoise, optional
- 
+
         zp: [np.array-like]           zero points for each observation as used in `sncosmo`,
                                       optional (default: 30)
-        
-        comment: [list-like]          comment string that will be passed on to the output 
+
+        comment: [list-like]          comment string that will be passed on to the output
                                       lightcurves, e.g. for different subsurveys, optional
 
 
-        
-        width: [float]                Default width (RA in deg) of the initial box used to 
-                                      match simulated transient coordinates to pointings 
-        
-        height: [float]               Default width (RA in deg) of the initial box used to 
-                                      match simulated transient coordinates to pointings 
-        
+
+        width: [float]                Default width (RA in deg) of the initial box used to
+                                      match simulated transient coordinates to pointings
+
+        height: [float]               Default width (RA in deg) of the initial box used to
+                                      match simulated transient coordinates to pointings
+
         fields: [dictionary]          dictionary defining the field grid of a survey,
                                       needs to contain at least arrays with 'ra' and 'dec',
                                       optional
-        
+
         ccds: [list]                  list of corners of individual CCDs, optional
- 
-        
+
+
         load_opsim: [str]             load plan from obsim file (experimental)
-        
+
         empty: [bool]                 Do not process the other arguments
         """
         self.__build__()
@@ -663,12 +668,12 @@ class SurveyPlan( BaseObject ):
                     width=width, height=height, fields=fields,
                     load_opsim=load_opsim, **kwargs)
 
-    def create(self, time=None, ra=None, dec=None, band=None, skynoise=None, 
+    def create(self, time=None, ra=None, dec=None, band=None, skynoise=None,
                obs_field=None, obs_ccd=None, zp=None, comment=None,
                width=7.295, height=7.465, fields=None,
                load_opsim=None, **kwargs):
         """
-        """        
+        """
         self._properties["width"] = float(width)
         self._properties["height"] = float(height)
         self._side_properties["ccds"] = kwargs.pop('ccds', None)
@@ -678,13 +683,17 @@ class SurveyPlan( BaseObject ):
                                  -min([min(a[:,0]) for a in self.ccds])])
             min_height = 2 * max([max([max(a[:,1]) for a in self.ccds]),
                                   -min([min(a[:,1]) for a in self.ccds])])
-            
+
             if self.width < min_width:
                 self._properties["width"] = min_width
 
             if self.height < min_height:
                 self._properties["height"] = min_height
-            
+
+        elif self.ccds is None and obs_ccd is not None:
+            raise AttributeError("ccds not set")
+
+
         if fields is not None:
             self.set_fields(**fields)
 
@@ -714,18 +723,18 @@ class SurveyPlan( BaseObject ):
         dec: [np.array or list-like]   list of Dec of the field centers
         ccds: [list]                   list of corners of individual CCDs
 
-        width: [float]                 Default width (RA in deg) of the initial box used to 
-                                       match simulated transient coordinates to pointings 
-        
-        height: [float]                Default width (RA in deg) of the initial box used to 
-                                       match simulated transient coordinates to pointings 
+        width: [float]                 Default width (RA in deg) of the initial box used to
+                                       match simulated transient coordinates to pointings
+
+        height: [float]                Default width (RA in deg) of the initial box used to
+                                       match simulated transient coordinates to pointings
         """
         kwargs["width"] = kwargs.get("width", self.width)
         kwargs["height"] = kwargs.get("height", self.height)
 
         if ccds is not None:
             self._side_properties["ccds"] = ccds
-        
+
         self._side_properties["fields"] = SurveyFieldBins(ra, dec, ccds=self.ccds,
                                                           **kwargs)
 
@@ -739,33 +748,33 @@ class SurveyPlan( BaseObject ):
         """Add observations to the pointing list
 
         time: [np.array-like]         pointing times in units of day (e.g. MJD), required
-        
+
         band: [list-like]             names of bandpasses (need to be registered in `sncosmo`),
                                       required
-        
+
         skynoise: [np.array_like]     skynoise values as used for `sncosmo.realize_lcs`,
-                                      to convert from e.g. 5-sigma limiting magnitude, use 1/5 
+                                      to convert from e.g. 5-sigma limiting magnitude, use 1/5
                                       of corresponding flux given the zero point used, i.e.
                                       10 ** (0.4 * (zp - limmag)) / 5, required
 
-        
-        fields: [np.array-like]       observed field number, required unless RA and Dec 
+
+        fields: [np.array-like]       observed field number, required unless RA and Dec
                                       are provided for individual pointings
-        
+
         ra: [np.array-like]           observed RA in deg, required unless field numbers are
                                       provided
-        
+
         dec: [np.array-like]          observed Dec in deg, required unless field numbers are
                                       provided
-        
+
 
         ccd: [np.array-like]          individual CCD numbers can be provided to allow
                                       varying skynoise, optional
- 
+
         zp: [np.array-like]           zero points for each observation as used in `sncosmo`,
                                       optional (default: 30)
-        
-        comment: [list-like]          comment string that will be passed on to the output 
+
+        comment: [list-like]          comment string that will be passed on to the output
                                       lightcurves, e.g. for different subsurveys, optional
         """
         if ra is None and dec is None and field is None:
@@ -782,6 +791,8 @@ class SurveyPlan( BaseObject ):
 
         if zp is None:
             zp = np.array([np.nan for r in ra])
+            warnings.warn('None zeropoint was given. Default: zp = 30', UserWarning)
+            warnings.warn('Zeropoint will be required in future versions of simsurvey', FutureWarning)
         if ccd is None:
             ccd = np.array([np.nan for r in ra])
         if comment is None:
@@ -794,7 +805,7 @@ class SurveyPlan( BaseObject ):
         if self._properties['pointings'] is None:
             self._properties['pointings'] = new_obs
         else:
-            self._properties['pointings'] = vstack((self._properties['pointings'], 
+            self._properties['pointings'] = vstack((self._properties['pointings'],
                                                   new_obs))
 
     # ---------------------- #
@@ -809,12 +820,12 @@ class SurveyPlan( BaseObject ):
 
         Currently only the used columns are loaded
 
-        table_name -- name of table in SQLite DB (default "ptf" because of 
+        table_name -- name of table in SQLite DB (default "ptf" because of
                       Eric's example)
-        band_dict -- dictionary for converting filter names 
+        band_dict -- dictionary for converting filter names
         zp -- zero point for converting sky brightness from mag to flux units
               (should match the zp used in instprop for SimulSurvey)
-        """        
+        """
         import sqlite3
         connection = sqlite3.connect(filename)
 
@@ -837,7 +848,7 @@ class SurveyPlan( BaseObject ):
         loaded = _fetch(load_keys, survey_table)
         fields = _fetch(['fieldID', 'fieldRA', 'fieldDec'],
                        field_table)
-        
+
         connection.close()
 
         loaded['fieldRA'] /= _d2r
@@ -873,10 +884,10 @@ class SurveyPlan( BaseObject ):
                        progress_bar=False, notebook=False):
         """
         """
-        if (self.fields is not None and 
+        if (self.fields is not None and
             not np.all(np.isnan(self.pointings["field"]))):
             tmp = self.fields.coord2field(ra, dec, field_id=field_id,
-                                          progress_bar=progress_bar, 
+                                          progress_bar=progress_bar,
                                           notebook=notebook)
             return tmp['field'], tmp.get('ccd', None)
         else:
@@ -902,7 +913,7 @@ class SurveyPlan( BaseObject ):
         else:
             ccd = True
         for k, obs in enumerate(gen):
-            tmp_f = SurveyField(obs["RA"], obs["Dec"], 
+            tmp_f = SurveyField(obs["RA"], obs["Dec"],
                                 self.width, self.height,
                                 ccds=self.ccds)
             tmp = tmp_f.coord_in_field(ra, dec)
@@ -930,7 +941,7 @@ class SurveyPlan( BaseObject ):
                     out = np.append(out, [k])
                     if ccd is not None:
                         ccd = np.append(ccd, [tmp['ccd']])
-                        
+
             else:
                 mask = tmp['field']
                 if not np.isnan(obs['ccd']):
@@ -969,7 +980,7 @@ class SurveyPlan( BaseObject ):
                 if ccds is not None and np.any(~mask2):
                     mask3 = (self.pointings['ccd'] == ccds[k])
                     mask = mask & (mask2 | mask3)
-                                  
+
                 out['time'].extend(self.pointings['time'][mask].quantity.value)
                 out['band'].extend(self.pointings['band'][mask])
                 out['zp'].extend(self.pointings['zp'][mask])
@@ -1068,8 +1079,8 @@ class LightcurveCollection( BaseObject ):
         """
         self.__build__()
 
-        self._side_properties['version'] = __version__ 
-        
+        self._side_properties['version'] = __version__
+
         self.set_threshold(threshold)
         self.set_n_det(n_det)
         self.set_p_bins(p_bins)
@@ -1101,7 +1112,7 @@ class LightcurveCollection( BaseObject ):
 
 
         mask = self._add_lcs_(lcs)
-        self._add_meta_(meta, mask=mask)    
+        self._add_meta_(meta, mask=mask)
 
     def load(self, filename):
         """
@@ -1135,7 +1146,7 @@ class LightcurveCollection( BaseObject ):
         cwd = os.getcwd()
         tmpdir = tempfile.mkdtemp('lightcurves')
         file_base = filename.split('/')[-1].split('.')[0]
-    
+
         os.chdir(tmpdir)
         os.mkdir(os.path.join(tmpdir, file_base))
 
@@ -1187,7 +1198,7 @@ class LightcurveCollection( BaseObject ):
 
         os.rmdir(tmpdir)
         os.chdir(cwd)
-        
+
     def filter(self, filterfunc=(lambda lc: lc), n_det=None, threshold=None, p_bins=None):
         """Create new LightcurveCollection, where each lc
         is filtered using filterfunc which takes the lc as an argument
@@ -1202,13 +1213,13 @@ class LightcurveCollection( BaseObject ):
 
         if p_bins is None:
             p_bins = self.p_bins
-            
+
         lcs = LightcurveCollection(empty=True, n_det=n_det, threshold=threshold,
                                    p_bins=p_bins)
-        
+
         lcs._properties["meta_rejected"] = deepcopy(self._properties['meta_rejected'])
         lcs._properties["meta_notobserved"] = deepcopy(self._properties['meta_notobserved'])
-        
+
         for k in range(len(self.lcs)):
             lc = self._get_lc_(k)
             lc_filt = filterfunc(lc)
@@ -1275,7 +1286,7 @@ class LightcurveCollection( BaseObject ):
     def _add_meta_(self, meta, mask):
         """
         """
-        if type(meta) is list:                
+        if type(meta) is list:
             for (meta_, mask_) in zip(meta, mask):
                 if mask_:
                     self._add_meta_info_(meta_)
@@ -1291,12 +1302,12 @@ class LightcurveCollection( BaseObject ):
         """
         """
         meta_name = 'meta%s'%suffix
-        
+
         if self._properties[meta_name] is None:
             keys = [k for k in info.keys()]
             dtypes = [type(v) for v in info.values()]
             self._create_meta_(keys, dtypes, suffix)
-            
+
         for k in self._properties[meta_name].keys():
             self._properties[meta_name][k] = np.append(
                 self._properties[meta_name][k],
@@ -1316,9 +1327,9 @@ class LightcurveCollection( BaseObject ):
         """
         """
         self._derived_properties['stats'] = {
-            'p_det': np.array([]), 
-            'p_last': np.array([]), 
-            'dt_det': np.array([]), 
+            'p_det': np.array([]),
+            'p_last': np.array([]),
+            'dt_det': np.array([]),
             'p_binned': {'all': None},
             'mag_max': {}
         }
@@ -1354,7 +1365,7 @@ class LightcurveCollection( BaseObject ):
             new = np.concatenate(
                 (self._derived_properties['stats']['p_binned']['all'], new),
                 axis=0
-            )    
+            )
         self._derived_properties['stats']['p_binned']['all'] = new
 
         for b_ in np.unique(lc["band"]):
@@ -1440,7 +1451,7 @@ class LightcurveCollection( BaseObject ):
         if self._properties["meta_notobserved"] is None:
             return None
         return dict_to_array(self._properties["meta_notobserved"])
-    
+
     @property
     def meta_full(self):
         """numpy structured array with of meta parameters
@@ -1529,13 +1540,13 @@ def get_p_det_last(lc, thr=5., n_det=2):
         if k__[0] > 0:
             dt = lc['time'][k__[0]] - lc['time'][k__[0] - 1]
         else:
-            dt = 1e12            
+            dt = 1e12
         p1 = lc['time'].max() - lc.meta['t0']
     else:
         p0 = 1e12
         dt = 1e12
         p1 = -1e12
-        
+
     return p0, p1, dt
 
 def identify_nights(t, interval=0.25):
@@ -1564,5 +1575,5 @@ def get_lc_max(lc, band):
         zp = lc_b['zp'][lc_b['flux'] == max_flux]
         if max_flux > 0:
             return -2.5 * np.log10(max_flux) + zp
-            
+
     return 99.
