@@ -190,9 +190,10 @@ class SimulSurvey( BaseObject ):
 
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
-            fluxerr = np.sqrt(obs['skynoise']**2 +
-                              np.abs(lc['flux']) / obs['gain'])
+            # fluxerr = np.sqrt(obs['skynoise']**2 +
+            #                  np.abs(lc['flux']) / obs['gain'])
 
+            fluxerr = obs['skynoise']
             fluxcov = np.diag(fluxerr**2)
             save_cov = False
             for band in set(obs['band']):
