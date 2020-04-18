@@ -71,7 +71,11 @@ default values are acceptable for the simulation.
 
 The function can further have any number of keyword argument, values
 for which can be provided as a dictionary as shown in the example
-below.
+below. In addition to the redshifts and the ``sncosmo.Model``, the
+function will also receive RA and Dec as keyword arguments, e.g. for
+simulations of gravitationally lensed SNe. Unless the keyword aruments
+``ra`` and ``dec`` are used by this function, it will always require
+``**kwargs`` as an argument in its definition.
 
 Using a Sky Map for Coordinate Generation
 =========================================

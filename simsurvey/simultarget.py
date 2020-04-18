@@ -642,6 +642,7 @@ class TransientGenerator( BaseObject ):
         if "lightcurve_prop" in self.transient_coverage.keys():
             lc = self.transient_coverage["lightcurve_prop"]
             param = lc["param_func"](self.zcmb,self.model,
+                                     ra=self.ra, dec=self.dec,
                                      **lc["param_func_kwargs"])
             self._derived_properties["simul_parameters"]["lightcurve"] = param 
 
@@ -1278,7 +1279,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                   color_mean=0, color_sigma=0.1,
                                   stretch_mean=0, stretch_sigma=1,
                                   alpha=0.13, beta=3.,
-                                  cosmo=Planck15):
+                                  cosmo=Planck15, **kwargs):
         """
         """
         ntransient = len(redshifts)
@@ -1303,7 +1304,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                       color_mean=0, color_sigma=0.1,
                                       stretch_mean=(0.5, -1), stretch_sigma=(1, 1),
                                       stretch_thr=0.75, alpha=0, beta=3,
-                                      cosmo=Planck15):
+                                      cosmo=Planck15, **kwargs):
         """
         stretch parameters assume bimodal distribution
         stretch_thr is a threshold for uniformly drawn number used to determine 
