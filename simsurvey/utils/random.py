@@ -50,6 +50,7 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
     prob = skymap["prob"]
     prob[~np.isfinite(skymap["distmu"])] = 0.
     prob[skymap["distmu"] < 0.] = 0.
+    prob[prob < 0.] = 0.
     npix = len(prob)
     nside = hp.npix2nside(npix)
 
@@ -66,6 +67,7 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         prob[idx] = 0.0
 
     prob = prob / np.sum(prob)
+    idx = np.where(prob<0)[0]
     distn = rv_discrete(values=(np.arange(npix), prob))
     ipix = distn.rvs(size=min(npoints, batch_size))
     while len(ipix) < npoints:
