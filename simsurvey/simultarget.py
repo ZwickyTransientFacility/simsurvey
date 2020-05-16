@@ -503,7 +503,7 @@ class TransientGenerator( BaseObject ):
                     kwargs["mwebv_sfd98"]
                 )
             else:
-                self._reste_mwebv_()
+                self._reset_mwebv_()
 
     # --------------------------- #
     # - Plots Methods           - #
