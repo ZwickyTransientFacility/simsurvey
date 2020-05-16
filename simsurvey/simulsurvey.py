@@ -131,7 +131,7 @@ class SimulSurvey( BaseObject ):
         lcs = LightcurveCollection(empty=True, threshold=threshold, n_det=n_det,
                                    p_bins=p_bins)
         gen = izip(range(*args),
-                   self.generator.get_lightcurve_full_param(*args),
+                   self.generator.get_lc_param(*args),
                    self._get_observations_(*args))
 
         progress_bar_success = False

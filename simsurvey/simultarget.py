@@ -390,7 +390,7 @@ class TransientGenerator( BaseObject ):
                   in zip(self.model.param_names,
                          self.model.parameters)}
         out = []
-        for param in self.get_lightcurve_full_param():
+        for param in self.get_lc_param():
             p = {k: param[k] for k in self.model.param_names if k != 'mwr_v'}
             self.model.set(**p)
             out.append(self.model.bandmag(band, magsys, p['t0'] + t))
@@ -398,10 +398,22 @@ class TransientGenerator( BaseObject ):
 
         return np.array(out)
 
-    def get_lightcurve_full_param(self, *args, **kwargs):
+    def get_lightcurves(self, obs, trim_observations=True, **kwargs):
+        """Realize lightcurves based on the randomized lightcurve parameters
+        and a single set of observations, using `sncosmo.realize_lightcurves`,
+        see `sncosmo` documentation for details on obs and other arguments"""
+        params = self.get_lc_param(full_out=False)
+        return sncosmo.realize_lcs(obs, self.model, params,
+                                   trim_observations=trim_observations, **kwargs)
+
+    # --------------------------------------- #
+    # - Methods for manipulating lightcurve - #
+    # - parameters in the generator         - #
+    # --------------------------------------- #
+    def get_lc_param(self, *args, **kwargs):
         """Yields transient lightcurve parameters one by one
         args can be start, end, and step as for range()
-        
+
         kwargs:
         full_out -- [bool] return RA, Dec and original MW E(B-V) from SFD98 maps"""
         full_out = kwargs.get("full_out", True)
@@ -414,7 +426,7 @@ class TransientGenerator( BaseObject ):
                     out["mwebv"] = self.mwebv[i]
                 else:
                     out["mwebv"] = 0
-                
+
             if full_out:
                 out["ra"] = self.ra[i]
                 out["dec"] = self.dec[i]
@@ -424,14 +436,6 @@ class TransientGenerator( BaseObject ):
                     out["mwebv_sfd98"] = 0
 
             yield out
-
-    def get_lightcurves(self, obs, trim_observations=True, **kwargs):
-        """Realize lightcurves based on the randomized lightcurve parameters
-        and a single set of observations, using `sncosmo.realize_lightcurves`,
-        see `sncosmo` documentation for details on obs and other arguments"""
-        params = self.get_lightcurve_full_param(full_out=False)
-        return sncosmo.realize_lcs(obs, self.model, params,
-                                   trim_observations=trim_observations, **kwargs)
 
     # --------------------------- #
     # - Plots Methods           - #
