@@ -398,6 +398,12 @@ class TransientGenerator( BaseObject ):
 
         return np.array(out)
 
+    def get_lightcurve_full_param(self, *args, **kwargs):
+        """Identical to self.get_lc_param, deprecated"""
+        warnings.warn("This method has been renamed to get_lc_param",
+                      DeprecationWarning)
+        return self.get_lc_param(*args, **kwargs)
+
     def get_lightcurves(self, obs, trim_observations=True, **kwargs):
         """Realize lightcurves based on the randomized lightcurve parameters
         and a single set of observations, using `sncosmo.realize_lightcurves`,
