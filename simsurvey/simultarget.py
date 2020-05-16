@@ -443,6 +443,68 @@ class TransientGenerator( BaseObject ):
 
             yield out
 
+    def remove_lc_param(self, *args):
+        """Remove a transient from the generator
+        args can be start, end, and step as for range()"""
+
+        for i in range(*range_args(self.ntransient, *args))[::1]:
+            for k in ["zcmb", "ra", "dec", "mjd"]:
+                self.simul_parameters[k] = np.delete(
+                    self.simul_parameters[k], i
+                )
+
+            for k in self.simul_parameters["lightcurve"].keys():
+                self.simul_parameters["lightcurve"][k] = np.delete(
+                    self.simul_parameters["lightcurve"][k], i
+                )
+
+            if self.has_mwebv_sfd98:
+                self._derived_properties["mwebv"] = np.delete(
+                    self._derived_properties["mwebv"], i
+                )
+                self._derived_properties["mwebv_sfd98"] = np.delete(
+                    self._derived_properties["mwebv_sfd98"], i
+                )
+
+    def add_lc_param(self, **kwargs):
+        """Add a transient to the generator
+        kwargs must include z, ra, dec, t0, and the sncosmo.Model parameters
+
+        mwebv and mwebv_sfd98 are optional but if one of them is not given all
+        mwebv values will be reset and reread from the map and new noise will be
+        added to the mwebv"""
+        expected_kwargs = ["z", "ra", "dec", "t0"]
+        expected_kwargs.extend(self.simul_parameters["lightcurve"].keys())
+        for k in expected_kwargs:
+            if k not in kwargs.keys():
+                raise ValueError("Argument '%s' is missing."%k)
+
+        self.simul_parameters["zcmb"] = np.append(self.simul_parameters["zcmb"],
+                                                  kwargs["z"])
+        self.simul_parameters["mjd"] = np.append(self.simul_parameters["mjd"],
+                                                 kwargs["t0"])
+        for k in ["ra", "dec"]:
+            self.simul_parameters[k] = np.append(self.simul_parameters[k],
+                                                 kwargs[k])
+        for k in self.simul_parameters["lightcurve"].keys():
+            self.simul_parameters["lightcurve"][k] = np.append(
+                self.simul_parameters["lightcurve"][k],
+                kwargs[k]
+            )
+
+        if self.has_mwebv_sfd98:
+            if "mwebv" in kwargs.keys() and "mwebv_sfd98" in kwarg.keys():
+                self._derived_properties["mwebv"] = np.append(
+                    self._derived_properties["mwebv"],
+                    kwargs["mwebv"]
+                )
+                self._derived_properties["mwebv_sfd98"] = np.append(
+                    self._derived_properties["mwebv_sfd98"],
+                    kwargs["mwebv_sfd98"]
+                )
+            else:
+                self._reste_mwebv_()
+
     # --------------------------- #
     # - Plots Methods           - #
     # --------------------------- #
@@ -620,12 +682,12 @@ class TransientGenerator( BaseObject ):
         # - Redshift from Rate
         if "ntransient" not in self.transient_coverage.keys():
             self.simul_parameters["zcmb"] = \
-                list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
+                np.array(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
                                    time=self.timescale, area=self.coveredarea,
                                    ratefunc=self.ratefunc, cosmo=self.cosmo))
         else:
             self.simul_parameters["zcmb"] = \
-                list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
+                np.array(zdist_fixed_nsim(self.transient_coverage["ntransient"],
                                       self.zcmb_range[0], self.zcmb_range[1],
                                       ratefunc=self.ratefunc))
            
@@ -646,6 +708,7 @@ class TransientGenerator( BaseObject ):
                                      dec_range=self.dec_range,
                                      zcmb_range=self.zcmb_range,
                                      cosmo=self.cosmo)
+            self.simul_parameters["zcmb"] = np.array(simul_parameters["zcmb"])
 
         self._derived_properties['mwebv'] = None
 
