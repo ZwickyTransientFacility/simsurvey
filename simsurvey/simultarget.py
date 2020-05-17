@@ -390,7 +390,7 @@ class TransientGenerator( BaseObject ):
                   in zip(self.model.param_names,
                          self.model.parameters)}
         out = []
-        for param in self.get_lc_param():
+        for param in self.get_lightcurve_full_param():
             p = {k: param[k] for k in self.model.param_names if k != 'mwr_v'}
             self.model.set(**p)
             out.append(self.model.bandmag(band, magsys, p['t0'] + t))
@@ -399,24 +399,6 @@ class TransientGenerator( BaseObject ):
         return np.array(out)
 
     def get_lightcurve_full_param(self, *args, **kwargs):
-        """Identical to self.get_lc_param, deprecated"""
-        warnings.warn("This method has been renamed to get_lc_param",
-                      DeprecationWarning)
-        return self.get_lc_param(*args, **kwargs)
-
-    def get_lightcurves(self, obs, trim_observations=True, **kwargs):
-        """Realize lightcurves based on the randomized lightcurve parameters
-        and a single set of observations, using `sncosmo.realize_lightcurves`,
-        see `sncosmo` documentation for details on obs and other arguments"""
-        params = self.get_lc_param(full_out=False)
-        return sncosmo.realize_lcs(obs, self.model, params,
-                                   trim_observations=trim_observations, **kwargs)
-
-    # --------------------------------------- #
-    # - Methods for manipulating lightcurve - #
-    # - parameters in the generator         - #
-    # --------------------------------------- #
-    def get_lc_param(self, *args, **kwargs):
         """Yields transient lightcurve parameters one by one
         args can be start, end, and step as for range()
 
@@ -443,28 +425,55 @@ class TransientGenerator( BaseObject ):
 
             yield out
 
-    def remove_lc_param(self, *args):
-        """Remove a transient from the generator
-        args can be start, end, and step as for range()"""
+    def get_lightcurves(self, obs, trim_observations=True, **kwargs):
+        """Realize lightcurves based on the randomized lightcurve parameters
+        and a single set of observations, using `sncosmo.realize_lightcurves`,
+        see `sncosmo` documentation for details on obs and other arguments"""
+        params = self.get_lightcurve_full_param(full_out=False)
+        return sncosmo.realize_lcs(obs, self.model, params,
+                                   trim_observations=trim_observations, **kwargs)
 
-        for i in range(*range_args(self.ntransient, *args))[::1]:
-            for k in ["zcmb", "ra", "dec", "mjd"]:
-                self.simul_parameters[k] = np.delete(
-                    self.simul_parameters[k], i
-                )
+    # --------------------------------------- #
+    # - Methods for manipulating lightcurve - #
+    # - parameters in the generator         - #
+    # --------------------------------------- #
+    def get_lc_param(self, i):
+        """Retrieve a single set of lightcurve parameters
+        base on index i"""
+        out = dict(z=self.zcmb[i], t0=self.mjd[i],
+                   ra=self.ra[i], dec=self.dec[i],
+                   **{p: v[i] for p, v in self.lightcurve.items()})
 
-            for k in self.simul_parameters["lightcurve"].keys():
-                self.simul_parameters["lightcurve"][k] = np.delete(
-                    self.simul_parameters["lightcurve"][k], i
-                )
-
+        if self.apply_mwebv:
             if self.has_mwebv_sfd98:
-                self._derived_properties["mwebv"] = np.delete(
-                    self._derived_properties["mwebv"], i
-                )
-                self._derived_properties["mwebv_sfd98"] = np.delete(
-                    self._derived_properties["mwebv_sfd98"], i
-                )
+                out["mwebv"] = self.mwebv[i]
+                out["mwebv_sfd98"] = self.mwebv_sfd98[i]
+            else:
+                out["mwebv"] = 0
+                out["mwebv_sfd98"] = 0
+
+        return out
+
+    def remove_lc_param(self, i):
+        """Remove a transient from the generator based on index i"""
+
+        for k in ["zcmb", "ra", "dec", "mjd"]:
+                self.simul_parameters[k] = np.delete(
+                self.simul_parameters[k], i
+            )
+
+        for k in self.simul_parameters["lightcurve"].keys():
+            self.simul_parameters["lightcurve"][k] = np.delete(
+                self.simul_parameters["lightcurve"][k], i
+            )
+
+        if self.has_mwebv_sfd98:
+            self._derived_properties["mwebv"] = np.delete(
+                self._derived_properties["mwebv"], i
+            )
+            self._derived_properties["mwebv_sfd98"] = np.delete(
+                self._derived_properties["mwebv_sfd98"], i
+            )
 
     def add_lc_param(self, **kwargs):
         """Add a transient to the generator
@@ -493,7 +502,7 @@ class TransientGenerator( BaseObject ):
             )
 
         if self.has_mwebv_sfd98:
-            if "mwebv" in kwargs.keys() and "mwebv_sfd98" in kwarg.keys():
+            if "mwebv" in kwargs.keys() and "mwebv_sfd98" in kwargs.keys():
                 self._derived_properties["mwebv"] = np.append(
                     self._derived_properties["mwebv"],
                     kwargs["mwebv"]
@@ -501,9 +510,42 @@ class TransientGenerator( BaseObject ):
                 self._derived_properties["mwebv_sfd98"] = np.append(
                     self._derived_properties["mwebv_sfd98"],
                     kwargs["mwebv_sfd98"]
-                )
+                ) 
             else:
                 self._reset_mwebv_()
+
+    def pop_lc_param(self, *i):
+        """Pop a transient lightcurve parameter set instead of just getting it,
+        i.e. get and remove at the same time
+        index i as for get_lc_param"""
+        out = self.get_lc_param(i)
+        self.remove_lc_param(i)
+        return out
+
+    def set_lc_param(self, i, **kwargs):
+        """Set individual lightcurve parameters for a single transient
+        specified by index.
+        kwargs are the parameters of the sncosmo.Model (i.e. using t0
+        instead of mjd and z instead of zcmb) plus ra, dec, mwebv and
+        mwebv_sfd98
+        """
+        # Check that the parameter names are valid
+        for k in kwargs.keys():
+            if (k not in ["z", "t0", "ra", "mwebv", "mwebv_sfd98"] and
+                k not in self.simul_parameters["lightcurve"].keys()):
+                raise ValueError("Unknown parameter name '%s'"%k)
+
+        for k, v in kwargs.items():
+            if k == "z":
+                self.simul_parameters["zcmb"][i] = v
+            elif k == "t0":
+                self.simul_parameters["mjd"][i] = v
+            elif k in ["ra", "dec"]:
+                self.simul_parameters[k][i] = v
+            elif k in ["mwebv", "mwebv_ra"]:
+                self._derived_properties[k][i] = v
+            elif k in self.simul_parameters["lightcurve"].keys():
+                self.simul_parameters["lightcurve"][k][i] = v
 
     # --------------------------- #
     # - Plots Methods           - #
@@ -682,14 +724,14 @@ class TransientGenerator( BaseObject ):
         # - Redshift from Rate
         if "ntransient" not in self.transient_coverage.keys():
             self.simul_parameters["zcmb"] = \
-                np.array(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
+                np.array(list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
                                    time=self.timescale, area=self.coveredarea,
-                                   ratefunc=self.ratefunc, cosmo=self.cosmo))
+                                   ratefunc=self.ratefunc, cosmo=self.cosmo)))
         else:
             self.simul_parameters["zcmb"] = \
-                np.array(zdist_fixed_nsim(self.transient_coverage["ntransient"],
+                np.array(list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
                                       self.zcmb_range[0], self.zcmb_range[1],
-                                      ratefunc=self.ratefunc))
+                                      ratefunc=self.ratefunc)))
            
         self.simul_parameters["mjd"] = self._simulate_mjd_()
         self.simul_parameters["ra"], self.simul_parameters["dec"] = \
