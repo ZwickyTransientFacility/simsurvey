@@ -488,6 +488,17 @@ class TransientGenerator( BaseObject ):
             if k not in kwargs.keys():
                 raise ValueError("Argument '%s' is missing."%k)
 
+        len_kwargs = []
+        for k, v in kwargs.items():
+            try:
+                len_kwargs.append(len(v))
+            except TypeError:
+                len_kwargs.append(-1)
+
+        if len(np.unique(len_kwargs)) > 1:
+            raise ValueError("All arguments must either be floats or array of same length.")
+
+
         self.simul_parameters["zcmb"] = np.append(self.simul_parameters["zcmb"],
                                                   kwargs["z"])
         self.simul_parameters["mjd"] = np.append(self.simul_parameters["mjd"],
