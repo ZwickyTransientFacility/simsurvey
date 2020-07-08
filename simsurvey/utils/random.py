@@ -21,7 +21,7 @@ try:
 except ImportError:
     LIGO_SKYMAP_IMPORTED = False
 
-_d2r = np.pi / 180 
+_d2r = np.pi / 180
 
 __all__ = ["radec", "redshift",
            "simulate_lb", "simulate_z"]
@@ -46,10 +46,19 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         raise ImportError("healpy could not be imported. Please make sure it is installed.")
     if not LIGO_SKYMAP_IMPORTED:
         raise ImportError("ligo.skymap could not be imported. Please make sure it is installed.")
-        
+    _2D = False
+    _3D = False
+    zs = []
+    if type(skymap)!=tuple:
+        _2D = True
+    else:
+        _3D = True
+
     prob = skymap["prob"]
-    prob[~np.isfinite(skymap["distmu"])] = 0.
-    prob[skymap["distmu"] < 0.] = 0.
+
+    if _3D:
+        prob[~np.isfinite(skymap["distmu"])] = 0.
+        prob[skymap["distmu"] < 0.] = 0.
     prob[prob < 0.] = 0.
     npix = len(prob)
     nside = hp.npix2nside(npix)
@@ -74,29 +83,30 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         ipix = np.append(ipix, distn.rvs(size=min(npoints-len(ipix), batch_size)))
     ra, dec = hp.pix2ang(nside, ipix, lonlat=True)
 
-    # If no zcmb_range provided set the upper limit to 1e9 Mpc (z >> 1000)
-    if zcmb_range is not None:
-        dist_range = [cosmo.luminosity_distance(zcmb_range[0]).value,
-                      cosmo.luminosity_distance(zcmb_range[1]).value]
-    else:
-        dist_range = [0, 1e9]
-        
-    z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
-    z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
+    if _3D:
+        # If no zcmb_range provided set the upper limit to 1e9 Mpc (z >> 1000)
+        if zcmb_range is not None:
+            dist_range = [cosmo.luminosity_distance(zcmb_range[0]).value,
+                          cosmo.luminosity_distance(zcmb_range[1]).value]
+        else:
+            dist_range = [0, 1e9]
 
-    #calculate the moments from distmu, distsigma and distnorm
-    mom_mean, mom_std, mom_norm = distance.parameters_to_moments(skymap["distmu"],skymap["distsigma"])
-    
-    dists = -np.ones(npoints)
-    dists_in_range = np.zeros(npoints, dtype=bool)
-    while not np.all(dists_in_range):
-        ipix_tmp = ipix[~dists_in_range]
-        dists[~dists_in_range] = (mom_mean[ipix_tmp] + 
-                                  mom_std[ipix_tmp] * 
-                                  np.random.normal(size=np.sum(~dists_in_range)))
-        dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
-         
-    zs = z_d(dists)
+        z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
+        z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
+
+        #calculate the moments from distmu, distsigma and distnorm
+        mom_mean, mom_std, mom_norm = distance.parameters_to_moments(skymap["distmu"],skymap["distsigma"])
+
+        dists = -np.ones(npoints)
+        dists_in_range = np.zeros(npoints, dtype=bool)
+        while not np.all(dists_in_range):
+            ipix_tmp = ipix[~dists_in_range]
+            dists[~dists_in_range] = (mom_mean[ipix_tmp] +
+                                      mom_std[ipix_tmp] *
+                                      np.random.normal(size=np.sum(~dists_in_range)))
+            dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
+
+        zs = z_d(dists)
 
     return ra, dec, zs
 
@@ -112,7 +122,7 @@ def redshift(npoints, zrange,
 
     if pdfkind.lower() in ["flat","None"]:
         pdfkind = None
-        
+
     if pdfkind is None:
         # - The default Stuff
         z_pdf = kwargs.pop("z_pdf",None)
@@ -122,7 +132,7 @@ def redshift(npoints, zrange,
     else:
         raise NotImplementedError("the 'pdfkind' could only be 'flat' or None")
 
-    
+
     return np.asarray(simulate_z(npoints,zrange,z_pdf=z_pdf,z_pdf_bins=z_pdf_bins))
 
 # ============================== #
@@ -131,11 +141,11 @@ def redshift(npoints, zrange,
 def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
                 output_frame='galactic',radius=None,skymap=None):
     """
-    Draw a set of coordinates for particular RA and Dec range with MW exclusion 
+    Draw a set of coordinates for particular RA and Dec range with MW exclusion
 
     Arguments:
     Npoints -- number of coordinates to draw
-    
+
     Keyword arguments:
     MW_exclusion -- redraw coordinates with b < this valu in degrees (default: 10)
     ra_range     -- range of RA distribution
@@ -152,13 +162,13 @@ def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
         """
         ra = np.random.random(Npoints_)*(ra_range_[1] - ra_range_[0]) + ra_range_[0]
         dec = np.arcsin(np.random.random(Npoints_)*(dec_sin_range_[1] - dec_sin_range_[0]) + dec_sin_range_[0]) / _d2r
- 
+
         return ra,dec
 
     def _draw_without_MW_(Npoints_,ra_range_,dec_sin_range_,MW_exclusion_,radius_):
         """
         """
-        
+
         l,b = np.array([]),np.array([])
         while( len(l) < Npoints_ ):
             ra,dec = _draw_radec_(Npoints_ - len(l),ra_range_,dec_sin_range_)
@@ -175,7 +185,7 @@ def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
                 b = np.concatenate((b,b_[mask]))
             else:
                 l = np.concatenate((l,ra[mask]))
-                b = np.concatenate((b,dec[mask]))                
+                b = np.concatenate((b,dec[mask]))
 
         return l,b
 
@@ -192,7 +202,7 @@ def simulate_lb(Npoints,MW_exclusion=10,ra_range=(-180,180),dec_range=(-90,90),
     if dec_range[0] < -90 or dec_range[1] > 90 or dec_range[0] > dec_range[1]:
         raise ValueError('dec_range must be contained in [-90,90]')
 
-    dec_sin_range = (np.sin(dec_range[0]*_d2r),np.sin(dec_range[1]*_d2r)) 
+    dec_sin_range = (np.sin(dec_range[0]*_d2r),np.sin(dec_range[1]*_d2r))
 
     if MW_exclusion > 0. or radius is not None:
         return _draw_without_MW_(Npoints, ra_range, dec_sin_range,
@@ -214,12 +224,12 @@ def simulate_z(NPoints,z_range,z_pdf=None,z_pdf_bins=None):
 
     Keyword arguments:
     z_pdf      -- redshift histogramm values (need not be normalized)
-    z_pdf_bins -- redshift bins for z_pdf (must contain one more element 
+    z_pdf_bins -- redshift bins for z_pdf (must contain one more element
                   than z_pdf)
     """
     if (len(z_range) != 2 or z_range[0] > z_range[1]):
         raise ValueError('Invalid z_range')
-        
+
     if z_pdf is None:
         if z_pdf_bins is None:
             z_pdf = np.ones(1)
@@ -231,11 +241,11 @@ def simulate_z(NPoints,z_range,z_pdf=None,z_pdf_bins=None):
     else:
         if z_pdf_bins is None:
             z_pdf_bins = np.linspace(z_range[0],z_range[1],len(z_pdf)+1)
-        elif (np.abs(z_pdf_bins[0] - z_range[0]) / z_range[0] > 1e-9 
-              or np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9 
+        elif (np.abs(z_pdf_bins[0] - z_range[0]) / z_range[0] > 1e-9
+              or np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9
               or True in [a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])]):
             print(np.abs(z_pdf_bins[0] - z_range[0]) / z_range[0] > 1e-9)
-            print(np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9) 
+            print(np.abs(z_pdf_bins[-1] - z_range[1]) / z_range[1] > 1e-9)
             print([a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])])
             print(True in [a>b for a,b in zip(z_pdf_bins[:-1],z_pdf_bins[1:])])
             raise ValueError('Invalid z_pdf_bins')
@@ -263,11 +273,11 @@ def simulate_z(NPoints,z_range,z_pdf=None,z_pdf_bins=None):
 
 def ang_sep(l1,b1,l2,b2):
     """
-    Angular separation between two positions on the sky 
+    Angular separation between two positions on the sky
     (l1,b1) and (l2,b2) in degrees.
     """
     sin_theta = np.sqrt((np.cos(b2 * _d2r) * np.sin((l1 - l2) * _d2r)) ** 2 +
-                        (np.cos(b1 * _d2r) * np.sin(b2 * _d2r) - 
+                        (np.cos(b1 * _d2r) * np.sin(b2 * _d2r) -
                          np.sin(b1 * _d2r) * np.cos(b2 * _d2r) * np.cos((l1 - l2) * _d2r)) ** 2)
     cos_theta = (np.cos(b1 * _d2r) * np.cos(b2 * _d2r) *
                  np.cos((l1 - l2) * _d2r) +
@@ -281,7 +291,7 @@ def ang_sep(l1,b1,l2,b2):
 def radec2gcs(ra, dec, deg=True):
     """
     Authors: Yannick Copin (ycopin@ipnl.in2p3.fr)
-    
+
     Convert *(ra,dec)* equatorial coordinates (J2000, in degrees if
     *deg*) to Galactic Coordinate System coordinates *(lII,bII)* (in
     degrees if *deg*).
@@ -329,7 +339,7 @@ def radec2gcs(ra, dec, deg=True):
 def rec2pol(x,y, deg=False):
     """
     Authors: Yannick Copin (ycopin@ipnl.in2p3.fr)
-    
+
     Conversion of rectangular *(x,y)* to polar *(r,theta)*
     coordinates
     """

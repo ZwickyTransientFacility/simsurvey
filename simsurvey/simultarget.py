@@ -761,7 +761,20 @@ class TransientGenerator( BaseObject ):
                                      dec_range=self.dec_range,
                                      zcmb_range=self.zcmb_range,
                                      cosmo=self.cosmo)
-            self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
+            if not self.simul_parameters["zcmb"]:
+                # - Redshift from Rate
+                if "ntransient" not in self.transient_coverage.keys():
+                    self.simul_parameters["zcmb"] = \
+                        np.array(list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
+                                           time=self.timescale, area=self.coveredarea,
+                                           ratefunc=self.ratefunc, cosmo=self.cosmo)))
+                else:
+                    self.simul_parameters["zcmb"] = \
+                        np.array(list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
+                                              self.zcmb_range[0], self.zcmb_range[1],
+                                              ratefunc=self.ratefunc)))
+            else:
+                self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
 
         self._derived_properties['mwebv'] = None
 
