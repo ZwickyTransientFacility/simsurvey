@@ -8,6 +8,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from astropy.cosmology import Planck15, z_at_value
 from astropy import units as u
 import random
+from numpy.random import uniform, normal
 
 try:
     import healpy as hp
@@ -38,27 +39,18 @@ def radec(npoints=1,
                        ra_range=ra_range,dec_range=dec_range,
                        output_frame="j2000",**kwargs))
 
-def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
-                  zcmb_range=None, cosmo=Planck15, batch_size=1000):
+
+def radec_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
+                  cosmo=Planck15, batch_size=1000):
     """
     """
     if not HEALPY_IMPORTED:
         raise ImportError("healpy could not be imported. Please make sure it is installed.")
     if not LIGO_SKYMAP_IMPORTED:
         raise ImportError("ligo.skymap could not be imported. Please make sure it is installed.")
-    _2D = False
-    _3D = False
-    zs = []
-    if type(skymap)!=tuple:
-        _2D = True
-    else:
-        _3D = True
 
     prob = skymap["prob"]
 
-    if _3D:
-        prob[~np.isfinite(skymap["distmu"])] = 0.
-        prob[skymap["distmu"] < 0.] = 0.
     prob[prob < 0.] = 0.
     npix = len(prob)
     nside = hp.npix2nside(npix)
@@ -83,32 +75,125 @@ def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
         ipix = np.append(ipix, distn.rvs(size=min(npoints-len(ipix), batch_size)))
     ra, dec = hp.pix2ang(nside, ipix, lonlat=True)
 
-    if _3D:
-        # If no zcmb_range provided set the upper limit to 1e9 Mpc (z >> 1000)
-        if zcmb_range is not None:
-            dist_range = [cosmo.luminosity_distance(zcmb_range[0]).value,
-                          cosmo.luminosity_distance(zcmb_range[1]).value]
-        else:
-            dist_range = [0, 1e9]
+    return ra, dec
 
-        z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
-        z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
 
-        #calculate the moments from distmu, distsigma and distnorm
-        mom_mean, mom_std, mom_norm = distance.parameters_to_moments(skymap["distmu"],skymap["distsigma"])
+def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
+                  zcmb_range=None, cosmo=Planck15, batch_size=1000):
+    """
+    """
+    if not HEALPY_IMPORTED:
+        raise ImportError("healpy could not be imported. Please make sure it is installed.")
+    if not LIGO_SKYMAP_IMPORTED:
+        raise ImportError("ligo.skymap could not be imported. Please make sure it is installed.")
 
-        dists = -np.ones(npoints)
-        dists_in_range = np.zeros(npoints, dtype=bool)
-        while not np.all(dists_in_range):
-            ipix_tmp = ipix[~dists_in_range]
-            dists[~dists_in_range] = (mom_mean[ipix_tmp] +
-                                      mom_std[ipix_tmp] *
-                                      np.random.normal(size=np.sum(~dists_in_range)))
-            dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
+    prob = skymap["prob"]
 
-        zs = z_d(dists)
+    prob[~np.isfinite(skymap["distmu"])] = 0.
+    prob[skymap["distmu"] < 0.] = 0.
+    prob[prob < 0.] = 0.
+    npix = len(prob)
+    nside = hp.npix2nside(npix)
+
+    theta, phi = hp.pix2ang(nside, np.arange(npix))
+    ra_map = np.rad2deg(phi)
+    dec_map = np.rad2deg(0.5*np.pi - theta)
+
+    if not ra_range is None:
+        idx = np.where((ra_map < ra_range[0]) | (ra_map > ra_range[1]))[0]
+        prob[idx] = 0.0
+
+    if not dec_range is None:
+        idx = np.where((dec_map < dec_range[0]) | (dec_map > dec_range[1]))[0]
+        prob[idx] = 0.0
+
+    prob = prob / np.sum(prob)
+    idx = np.where(prob<0)[0]
+    distn = rv_discrete(values=(np.arange(npix), prob))
+    ipix = distn.rvs(size=min(npoints, batch_size))
+    while len(ipix) < npoints:
+        ipix = np.append(ipix, distn.rvs(size=min(npoints-len(ipix), batch_size)))
+    ra, dec = hp.pix2ang(nside, ipix, lonlat=True)
+
+    # If no zcmb_range provided set the upper limit to 1e9 Mpc (z >> 1000)
+    if zcmb_range is not None:
+        dist_range = [cosmo.luminosity_distance(zcmb_range[0]).value,
+                      cosmo.luminosity_distance(zcmb_range[1]).value]
+    else:
+        dist_range = [0, 1e9]
+
+    z_tmp = np.linspace(zcmb_range[0], zcmb_range[1], 1000)
+    z_d = Spline1d(cosmo.luminosity_distance(z_tmp).value, z_tmp)
+
+    #calculate the moments from distmu, distsigma and distnorm
+    mom_mean, mom_std, mom_norm = distance.parameters_to_moments(skymap["distmu"],skymap["distsigma"])
+
+    dists = -np.ones(npoints)
+    dists_in_range = np.zeros(npoints, dtype=bool)
+    while not np.all(dists_in_range):
+        ipix_tmp = ipix[~dists_in_range]
+        dists[~dists_in_range] = (mom_mean[ipix_tmp] +
+                                  mom_std[ipix_tmp] *
+                                  np.random.normal(size=np.sum(~dists_in_range)))
+        dists_in_range = (dists > dist_range[0]) & (dists < dist_range[1])
+
+    zs = z_d(dists)
 
     return ra, dec, zs
+
+def zdist_fixed_nsim(nsim, zmin, zmax,
+                     ratefunc=lambda z: 1.,
+                     cosmo=Planck15):
+    """Generate a distribution of redshifts.
+
+    Generates redshifts for a given number of tranisents with the correct
+    redshift distribution, given the input volumetric SN rate function and
+    cosmology.
+
+    (Adapted from sncosmo.zdist)
+
+    Parameters
+    ----------
+    nsim : int
+        Number of transient redshifts to be simulated.
+    zmin, zmax : float
+        Minimum and maximum redshift.
+    ratefunc : callable
+        A callable that accepts a single float (redshift) and returns the
+        comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.
+        The default is a function that returns ``1.``.
+    cosmo : `~astropy.cosmology.Cosmology`, optional
+        Cosmology used to determine volume. The default is Planck15.
+
+    Examples
+    --------
+
+    TBA
+    """
+
+    # Get comoving volume in each redshift shell.
+    z_bins = 100  # Good enough for now.
+    z_binedges = np.linspace(zmin, zmax, z_bins + 1)
+    z_binctrs = 0.5 * (z_binedges[1:] + z_binedges[:-1])
+    sphere_vols = cosmo.comoving_volume(z_binedges).value
+    shell_vols = sphere_vols[1:] - sphere_vols[:-1]
+
+    # SN / (observer year) in shell
+    shell_snrate = np.array([shell_vols[i] *
+                             ratefunc(z_binctrs[i]) / (1.+z_binctrs[i])
+                             for i in range(z_bins)])
+
+    # SN / (observer year) within z_binedges
+    vol_snrate = np.zeros_like(z_binedges)
+    vol_snrate[1:] = np.add.accumulate(shell_snrate)
+
+    # Create a ppf (inverse cdf). We'll use this later to get
+    # a random SN redshift from the distribution.
+    snrate_cdf = vol_snrate / vol_snrate[-1]
+    snrate_ppf = Spline1d(snrate_cdf, z_binedges, k=1)
+
+    for i in range(nsim):
+        yield float(snrate_ppf(uniform()))
 
 def redshift(npoints, zrange,
              pdfkind="flat",

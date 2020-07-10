@@ -731,6 +731,10 @@ class TransientGenerator( BaseObject ):
     def _update_simulation_(self):
         """
         """
+        # Raise an error if ntransient not set
+        '''if self.ntransient is None:
+            raise AttributeError("'ntransient' has not been defined")
+        '''
         # -----------------------
         # - Redshift from Rate
         if "ntransient" not in self.transient_coverage.keys():
@@ -740,18 +744,15 @@ class TransientGenerator( BaseObject ):
                                    ratefunc=self.ratefunc, cosmo=self.cosmo)))
         else:
             self.simul_parameters["zcmb"] = \
-                np.array(list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
+                np.array(list(random.zdist_fixed_nsim(self.transient_coverage["ntransient"],
                                       self.zcmb_range[0], self.zcmb_range[1],
                                       ratefunc=self.ratefunc)))
 
         self.simul_parameters["mjd"] = self._simulate_mjd_()
-        self.simul_parameters["ra"], self.simul_parameters["dec"] = \
-          random.radec(self.ntransient,
-                       ra_range=self.ra_range,
-                       dec_range=self.dec_range,
-                       mw_exclusion=self._get_event_property_("mw_exclusion"))
 
-        if self.event_coverage["skymap"] is not None:
+        # Check if skymap (2D or 3D), otherwise uniform distribution
+        if self.event_coverage["skymap"] is not None and all([key in self.event_coverage["skymap"].keys() for key in ("distmu", "distsigma")]):
+            # Run 3d skymap generator
             self.simul_parameters["ra"], \
             self.simul_parameters["dec"], \
             self.simul_parameters["zcmb"] = \
@@ -761,20 +762,24 @@ class TransientGenerator( BaseObject ):
                                      dec_range=self.dec_range,
                                      zcmb_range=self.zcmb_range,
                                      cosmo=self.cosmo)
-            if not self.simul_parameters["zcmb"]:
-                # - Redshift from Rate
-                if "ntransient" not in self.transient_coverage.keys():
-                    self.simul_parameters["zcmb"] = \
-                        np.array(list(sncosmo.zdist(self.zcmb_range[0], self.zcmb_range[1],
-                                           time=self.timescale, area=self.coveredarea,
-                                           ratefunc=self.ratefunc, cosmo=self.cosmo)))
-                else:
-                    self.simul_parameters["zcmb"] = \
-                        np.array(list(zdist_fixed_nsim(self.transient_coverage["ntransient"],
-                                              self.zcmb_range[0], self.zcmb_range[1],
-                                              ratefunc=self.ratefunc)))
+        else:
+
+            if self.event_coverage["skymap"] is not None:
+                # Run 2d skymap
+                self.simul_parameters["ra"], \
+                self.simul_parameters["dec"] = \
+                    random.radec_skymap(self.ntransient,
+                                         self.event_coverage["skymap"],
+                                         ra_range=self.ra_range,
+                                         dec_range=self.dec_range,
+                                         cosmo=self.cosmo)
             else:
-                self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
+                # Uniform ra and Dec distribution
+                self.simul_parameters["ra"], self.simul_parameters["dec"] = \
+                  random.radec(self.ntransient,
+                               ra_range=self.ra_range,
+                               dec_range=self.dec_range,
+                               mw_exclusion=self._get_event_property_("mw_exclusion"))
 
         self._derived_properties['mwebv'] = None
 
@@ -1649,59 +1654,7 @@ def lightcurve_scaled_to_mag(redshifts, model,
     return out
 
 
-def zdist_fixed_nsim(nsim, zmin, zmax,
-                     ratefunc=lambda z: 1.,
-                     cosmo=Planck15):
-    """Generate a distribution of redshifts.
 
-    Generates redshifts for a given number of tranisents with the correct
-    redshift distribution, given the input volumetric SN rate function and
-    cosmology.
-
-    (Adapted from sncosmo.zdist)
-
-    Parameters
-    ----------
-    nsim : int
-        Number of transient redshifts to be simulated.
-    zmin, zmax : float
-        Minimum and maximum redshift.
-    ratefunc : callable
-        A callable that accepts a single float (redshift) and returns the
-        comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.
-        The default is a function that returns ``1.``.
-    cosmo : `~astropy.cosmology.Cosmology`, optional
-        Cosmology used to determine volume. The default is Planck15.
-
-    Examples
-    --------
-
-    TBA
-    """
-
-    # Get comoving volume in each redshift shell.
-    z_bins = 100  # Good enough for now.
-    z_binedges = np.linspace(zmin, zmax, z_bins + 1)
-    z_binctrs = 0.5 * (z_binedges[1:] + z_binedges[:-1])
-    sphere_vols = cosmo.comoving_volume(z_binedges).value
-    shell_vols = sphere_vols[1:] - sphere_vols[:-1]
-
-    # SN / (observer year) in shell
-    shell_snrate = np.array([shell_vols[i] *
-                             ratefunc(z_binctrs[i]) / (1.+z_binctrs[i])
-                             for i in range(z_bins)])
-
-    # SN / (observer year) within z_binedges
-    vol_snrate = np.zeros_like(z_binedges)
-    vol_snrate[1:] = np.add.accumulate(shell_snrate)
-
-    # Create a ppf (inverse cdf). We'll use this later to get
-    # a random SN redshift from the distribution.
-    snrate_cdf = vol_snrate / vol_snrate[-1]
-    snrate_ppf = Spline1d(snrate_cdf, z_binedges, k=1)
-
-    for i in range(nsim):
-        yield float(snrate_ppf(uniform()))
 
 def get_snana_filenames(sntype):
     """
