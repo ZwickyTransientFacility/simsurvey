@@ -1,14 +1,14 @@
 #! /usr/bin/env python
 #
 # Copyright (C) 2015-20 simsurvey Developers
-import simsurvey.version as sv
+import simsurveym.version as sv
 
-DESCRIPTION = "simsurvey: Basic tools for simulating astronomical surveys"
+DESCRIPTION = "simsurveym : Basic tools for simulating astronomical surveys"
 LONG_DESCRIPTION = """\
 Simulation tools for transient surveys (cadence, strategy).
 """
 
-DISTNAME = 'simsurvey'
+DISTNAME = 'simsurveym'
 AUTHOR = 'Simsurvey Developers'
 MAINTAINER = 'Ulrich Feindt, Ana Sagués Carracedo'
 MAINTAINER_EMAIL = 'ufeindt@gmail.com, ana.sagues-carracedo@fysik.su.se'
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         packages = find_packages()
     else:
         # This should be updated if new submodules are added
-        packages = ['simsurvey', 'simsurvey.utils']
+        packages = ['simsurveym', 'simsurvey.utils']
 
     setup(name=DISTNAME,
           author=AUTHOR,
