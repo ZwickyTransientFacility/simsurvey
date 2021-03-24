@@ -1,0 +1,22 @@
+Metadata-Version: 1.2
+Name: simsurvey
+Version: 0.7.0.dev3
+Summary: simsurvey: Basic tools for simulating astronomical surveys
+Home-page: https://github.com/ZwickyTransientFacility/simsurvey/
+Author: Simsurvey Developers
+Author-email: ufeindt@gmail.com, ana.sagues-carracedo@fysik.su.se
+Maintainer: Ulrich Feindt, Ana Sagués Carracedo
+Maintainer-email: ufeindt@gmail.com, ana.sagues-carracedo@fysik.su.se
+License: BSD (3-clause)
+Download-URL: https://github.com/ufeindt/ZwickyTransientFacility/tarball/0.7.0.dev3
+Description: Simulation tools for transient surveys (cadence, strategy).
+        
+Platform: UNKNOWN
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Topic :: Scientific/Engineering :: Astronomy
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Operating System :: MacOS
