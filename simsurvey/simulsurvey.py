@@ -192,7 +192,7 @@ class SimulSurvey( BaseObject ):
 
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
-            
+            skynoise = obs['skynoise']
             if 'limmag_err' in self.plan.pointings.keys():
                 limmag = obs['zp'] - 2.5*np.log10(5*obs['skynoise'])
                 # We should correlate the limmag with ccds and time.
@@ -202,7 +202,8 @@ class SimulSurvey( BaseObject ):
             
                 limmag = np.random.normal(loc=limmag, scale=limmag_err_)
               
-            skynoise = 10**(-0.4 * (np.array(limmag) - obs['zp'])) / 5
+                skynoise = 10**(-0.4 * (np.array(limmag) - obs['zp'])) / 5
+                
             if self.sourcenoise:
                 fluxerr = np.sqrt(skynoise**2 +
                               np.abs(lc['flux']) / obs['gain'])
@@ -713,7 +714,7 @@ class SurveyPlan( BaseObject ):
         if load_opsim is None:
             self.add_observation(time, band, skynoise, ra=ra, dec=dec,
                                  zp=zp, comment=comment, field=obs_field,
-                                 ccd=obs_ccd)
+                                 ccd=obs_ccd, limmag_err=limmag_err)
         else:
             self.load_opsim(load_opsim, **kwargs)
 
@@ -757,7 +758,7 @@ class SurveyPlan( BaseObject ):
         #     self._update_field_radec()
 
     def add_observation(self, time, band, skynoise, ra=None, dec=None, field=None,
-                        ccd=None, zp=None, comment=None):
+                        ccd=None, zp=None, comment=None, limmag_err=None):
         """Add observations to the pointing list
 
         time: [np.array-like]         pointing times in units of day (e.g. MJD), required
@@ -786,6 +787,8 @@ class SurveyPlan( BaseObject ):
 
         zp: [np.array-like]           zero points for each observation as used in `sncosmo`,
                                       optional (default: 30)
+                                      
+        limmag_err: [np.array-like]   Standard deviation to limmag, optional
 
         comment: [list-like]          comment string that will be passed on to the output
                                       lightcurves, e.g. for different subsurveys, optional
@@ -811,7 +814,12 @@ class SurveyPlan( BaseObject ):
         if comment is None:
             comment = np.array(['' for r in ra])
 
-        new_obs = Table(data=[time, band, zp, skynoise, ra, dec, field, ccd, comment],
+        if limmag_err is not None:
+            new_obs = Table(data=[time, band, zp, skynoise, limmag_err, ra, dec, field, ccd, comment],
+                            names=['time', 'band', 'zp', 'skynoise', 'limmag_err',
+                                   'RA', 'Dec', 'field', 'ccd', 'comment'])
+        else:
+            new_obs = Table(data=[time, band, zp, skynoise, ra, dec, field, ccd, comment],
                             names=['time', 'band', 'zp', 'skynoise',
                                    'RA', 'Dec', 'field', 'ccd', 'comment'])
 

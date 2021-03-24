@@ -2,6 +2,7 @@
 README.md
 setup.cfg
 setup.py
+dist/simsurvey-0.7.0.dev3-py3.7.egg
 docs/Makefile
 docs/additional-sources.rst
 docs/builtin-transients.rst
@@ -14,6 +15,7 @@ docs/make.bat
 docs/simulsurvey.rst
 docs/surveyplan.rst
 docs/usage.rst
+simsurvey/.DS_Store
 simsurvey/__init__.py
 simsurvey/models.py
 simsurvey/simulsurvey.py
@@ -24,6 +26,11 @@ simsurvey.egg-info/SOURCES.txt
 simsurvey.egg-info/dependency_links.txt
 simsurvey.egg-info/requires.txt
 simsurvey.egg-info/top_level.txt
+simsurvey/__pycache__/__init__.cpython-37.pyc
+simsurvey/__pycache__/models.cpython-37.pyc
+simsurvey/__pycache__/simulsurvey.cpython-37.pyc
+simsurvey/__pycache__/simultarget.cpython-37.pyc
+simsurvey/__pycache__/version.cpython-37.pyc
 simsurvey/utils/__init__.py
 simsurvey/utils/decorators.py
 simsurvey/utils/mpladdon.py
@@ -31,3 +38,9 @@ simsurvey/utils/random.py
 simsurvey/utils/skybins.py
 simsurvey/utils/skyplot.py
 simsurvey/utils/tools.py
+simsurvey/utils/__pycache__/__init__.cpython-37.pyc
+simsurvey/utils/__pycache__/decorators.cpython-37.pyc
+simsurvey/utils/__pycache__/random.cpython-37.pyc
+simsurvey/utils/__pycache__/skybins.cpython-37.pyc
+simsurvey/utils/__pycache__/skyplot.cpython-37.pyc
+simsurvey/utils/__pycache__/tools.cpython-37.pyc

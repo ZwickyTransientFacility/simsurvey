@@ -192,7 +192,7 @@ class SimulSurvey( BaseObject ):
 
             # Replace fluxerrors with covariance matrix that contains
             # correlated terms for the calibration uncertainty
-            
+            skynoise = obs['skynoise']
             if 'limmag_err' in self.plan.pointings.keys():
                 limmag = obs['zp'] - 2.5*np.log10(5*obs['skynoise'])
                 # We should correlate the limmag with ccds and time.
@@ -202,7 +202,8 @@ class SimulSurvey( BaseObject ):
             
                 limmag = np.random.normal(loc=limmag, scale=limmag_err_)
               
-            skynoise = 10**(-0.4 * (np.array(limmag) - obs['zp'])) / 5
+                skynoise = 10**(-0.4 * (np.array(limmag) - obs['zp'])) / 5
+                
             if self.sourcenoise:
                 fluxerr = np.sqrt(skynoise**2 +
                               np.abs(lc['flux']) / obs['gain'])
