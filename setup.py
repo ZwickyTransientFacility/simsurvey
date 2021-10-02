@@ -57,4 +57,5 @@ if __name__ == "__main__":
               'astropy>=1.2.1',
               'sncosmo>=1.3.1',
               'sfdmap>=0.1.0'],
+          setup_requires=['propobject>=0.1.0'],
     )
