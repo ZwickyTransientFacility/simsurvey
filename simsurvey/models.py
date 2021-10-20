@@ -170,7 +170,6 @@ class CompoundSource(sncosmo.Source):
         param_tmp = list(self._parameters[len(self._sources)-1:])
         for source in self._sources:
             for n_ in source._param_names:
-                print(n_, param_tmp)
                 source.set(**{n_: param_tmp.pop(0)})
 
         self._current_parameters = copy(self._parameters)
