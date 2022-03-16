@@ -761,7 +761,7 @@ class TransientGenerator( BaseObject ):
                                      dec_range=self.dec_range,
                                      zcmb_range=self.zcmb_range,
                                      cosmo=self.cosmo)
-            self.simul_parameters["zcmb"] = np.array(simul_parameters["zcmb"])
+            self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
 
         self._derived_properties['mwebv'] = None
 
