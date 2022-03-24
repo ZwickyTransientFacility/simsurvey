@@ -9,7 +9,7 @@ Python
 
 **Documentation:** https://simsurvey.readthedocs.io/
 
-**Paper:** [Feindt et al. (submitted)](https://arxiv.org/abs/1902.03923)
+**Paper:** [Feindt et al. (2019)](https://arxiv.org/abs/1902.03923)
 
 **Citing simsurvey:** [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3384863.svg)](https://doi.org/10.5281/zenodo.3384863)
 
