@@ -1568,6 +1568,26 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                         n_templates=len(model._source._model_flux),
                                         **kwargs)
 
+    def lightcurve_generic_AngularTimeSeriesSource_basic(self, redshifts, model,
+                                                         r_v=2., ebv_rate=0.11,
+                                                         cosmo=Planck15,
+                                                         **kwargs):
+        """
+        Basic distribution for an AngularTimeSeriesSource. In addition to
+        amplitude,  
+        """
+
+        distribution = np.arccos(np.random.random(len(redshifts))) / np.pi * 180 
+        # Amplitude
+        amp = []
+        for z in redshifts:
+            amp.append(10**(-0.4*Planck15.distmod(z).value))
+
+        return {
+            'amplitude': np.array(amp),
+            'theta': distribution, 
+        }
+
     def lightcurve_Ia_salt2_hostdependent():
         raise NotImplementedError("To be done")
 
