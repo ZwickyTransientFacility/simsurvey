@@ -1,0 +1,4 @@
+propobject>=0.1.0
+astropy>=1.2.1
+sncosmo>=1.3.1
+sfdmap>=0.1.0
