@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (C) 2015-20 simsurvey Developers
+# Copyright (C) 2015-22 simsurvey Developers
 import simsurvey.version as sv
 
 DESCRIPTION = "simsurvey: Basic tools for simulating astronomical surveys"
@@ -31,6 +31,13 @@ if __name__ == "__main__":
         # This should be updated if new submodules are added
         packages = ['simsurvey', 'simsurvey.utils']
 
+    requirements = [
+        'propobject>=0.1.0',
+        'astropy>=1.2.1',
+        'sncosmo>=1.3.1',
+        'sfdmap>=0.1.0',
+    ]
+
     setup(name=DISTNAME,
           author=AUTHOR,
           author_email=MAINTAINER_EMAIL,
@@ -52,9 +59,5 @@ if __name__ == "__main__":
               'Operating System :: POSIX',
               'Operating System :: Unix',
               'Operating System :: MacOS'],
-          install_requires=[
-              'propobject>=0.1.0',
-              'astropy>=1.2.1',
-              'sncosmo>=1.3.1',
-              'sfdmap>=0.1.0'],
+          install_requires=requirements,
     )
