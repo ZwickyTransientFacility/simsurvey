@@ -38,6 +38,42 @@ def radec(npoints=1,
                        ra_range=ra_range,dec_range=dec_range,
                        output_frame="j2000",**kwargs))
 
+def radec_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
+                 batch_size=1000):
+    """
+    """
+    if not HEALPY_IMPORTED:
+        raise ImportError("healpy could not be imported. Please make sure it is installed.")
+    if not LIGO_SKYMAP_IMPORTED:
+        raise ImportError("ligo.skymap could not be imported. Please make sure it is installed.")
+
+    prob = skymap["prob"]
+    prob[prob < 0.] = 0.
+    npix = len(prob)
+    nside = hp.npix2nside(npix)
+
+    theta, phi = hp.pix2ang(nside, np.arange(npix))
+    ra_map = np.rad2deg(phi)
+    dec_map = np.rad2deg(0.5*np.pi - theta)
+
+    if not ra_range is None:
+        idx = np.where((ra_map < ra_range[0]) | (ra_map > ra_range[1]))[0]
+        prob[idx] = 0.0
+
+    if not dec_range is None:
+        idx = np.where((dec_map < dec_range[0]) | (dec_map > dec_range[1]))[0]
+        prob[idx] = 0.0
+
+    prob = prob / np.sum(prob)
+    idx = np.where(prob<0)[0]
+    distn = rv_discrete(values=(np.arange(npix), prob))
+    ipix = distn.rvs(size=min(npoints, batch_size))
+    while len(ipix) < npoints:
+        ipix = np.append(ipix, distn.rvs(size=min(npoints-len(ipix), batch_size)))
+    ra, dec = hp.pix2ang(nside, ipix, lonlat=True)
+
+    return ra, dec
+
 def radecz_skymap(npoints=1,skymap={},ra_range=None,dec_range=None,
                   zcmb_range=None, cosmo=Planck15, batch_size=1000):
     """
