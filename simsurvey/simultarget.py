@@ -752,16 +752,24 @@ class TransientGenerator( BaseObject ):
                        mw_exclusion=self._get_event_property_("mw_exclusion"))
 
         if self.event_coverage["skymap"] is not None:
-            self.simul_parameters["ra"], \
-            self.simul_parameters["dec"], \
-            self.simul_parameters["zcmb"] = \
-                random.radecz_skymap(self.ntransient,
-                                     self.event_coverage["skymap"],
-                                     ra_range=self.ra_range,
-                                     dec_range=self.dec_range,
-                                     zcmb_range=self.zcmb_range,
-                                     cosmo=self.cosmo)
-            self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
+            if "distmu" in self.event_coverage["skymap"]:
+                self.simul_parameters["ra"], \
+                self.simul_parameters["dec"], \
+                self.simul_parameters["zcmb"] = \
+                    random.radecz_skymap(self.ntransient,
+                                         self.event_coverage["skymap"],
+                                         ra_range=self.ra_range,
+                                         dec_range=self.dec_range,
+                                         zcmb_range=self.zcmb_range,
+                                         cosmo=self.cosmo)
+                self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
+            else:
+                self.simul_parameters["ra"], \
+                self.simul_parameters["dec"] = \
+                    random.radec_skymap(self.ntransient,
+                                        self.event_coverage["skymap"],
+                                        ra_range=self.ra_range,
+                                        dec_range=self.dec_range)
 
         self._derived_properties['mwebv'] = None
 
