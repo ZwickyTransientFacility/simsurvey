@@ -14,7 +14,7 @@ MAINTAINER_EMAIL = 'ufeindt@gmail.com, ana.sagues-carracedo@fysik.su.se'
 URL = 'https://github.com/ZwickyTransientFacility/simsurvey/'
 LICENSE = 'BSD (3-clause)'
 DOWNLOAD_URL = 'https://github.com/ZwickyTransientFacility/tarball/'
-VERSION = "0.7.3"
+VERSION = "0.7.5"
 
 try:
     from setuptools import setup, find_packages

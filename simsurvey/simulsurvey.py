@@ -23,7 +23,7 @@ from astropy.table         import Table, vstack, hstack
 
 from propobject import BaseObject
 
-from .version import __VERSION__ as __version__
+from . import __version__
 from .utils.tools   import kwargs_update, range_args, range_length, get_progressbar
 from .utils.skybins import SurveyField, SurveyFieldBins
 
