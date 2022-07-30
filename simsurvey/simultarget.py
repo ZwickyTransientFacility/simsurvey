@@ -12,7 +12,7 @@ import pickle
 
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline1d
 from scipy.stats import truncnorm
-from astropy.cosmology import Planck15
+from astropy.cosmology import Planck18
 
 from propobject import BaseObject
 
@@ -213,7 +213,7 @@ class TransientGenerator( BaseObject ):
                mjd_range=(57754.0,58849.0),
                ra_range=(0,360), dec_range=(-90,90), apply_mwebv=True,
                mw_exclusion=0, sfd98_dir=None, transientprop=None, err_mwebv=0.01,
-               seed=None, cosmo=Planck15,
+               seed=None, cosmo=Planck18,
                skymap=None):
         """
         """
@@ -752,16 +752,24 @@ class TransientGenerator( BaseObject ):
                        mw_exclusion=self._get_event_property_("mw_exclusion"))
 
         if self.event_coverage["skymap"] is not None:
-            self.simul_parameters["ra"], \
-            self.simul_parameters["dec"], \
-            self.simul_parameters["zcmb"] = \
-                random.radecz_skymap(self.ntransient,
-                                     self.event_coverage["skymap"],
-                                     ra_range=self.ra_range,
-                                     dec_range=self.dec_range,
-                                     zcmb_range=self.zcmb_range,
-                                     cosmo=self.cosmo)
-            self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
+            if "distmu" in self.event_coverage["skymap"]:
+                self.simul_parameters["ra"], \
+                self.simul_parameters["dec"], \
+                self.simul_parameters["zcmb"] = \
+                    random.radecz_skymap(self.ntransient,
+                                         self.event_coverage["skymap"],
+                                         ra_range=self.ra_range,
+                                         dec_range=self.dec_range,
+                                         zcmb_range=self.zcmb_range,
+                                         cosmo=self.cosmo)
+                self.simul_parameters["zcmb"] = np.array(self.simul_parameters["zcmb"])
+            else:
+                self.simul_parameters["ra"], \
+                self.simul_parameters["dec"] = \
+                    random.radec_skymap(self.ntransient,
+                                        self.event_coverage["skymap"],
+                                        ra_range=self.ra_range,
+                                        dec_range=self.dec_range)
 
         self._derived_properties['mwebv'] = None
 
@@ -1405,7 +1413,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                   color_mean=0, color_sigma=0.1,
                                   stretch_mean=0, stretch_sigma=1,
                                   alpha=0.13, beta=3.,
-                                  cosmo=Planck15, **kwargs):
+                                  cosmo=Planck18, **kwargs):
         """
         """
         ntransient = len(redshifts)
@@ -1430,7 +1438,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
                                       color_mean=0, color_sigma=0.1,
                                       stretch_mean=(0.5, -1), stretch_sigma=(1, 1),
                                       stretch_thr=0.75, alpha=0, beta=3,
-                                      cosmo=Planck15, **kwargs):
+                                      cosmo=Planck18, **kwargs):
         """
         stretch parameters assume bimodal distribution
         stretch_thr is a threshold for uniformly drawn number used to determine 
@@ -1545,7 +1553,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
     def lightcurve_generic_ExpandingBlackBody_basic(self, redshifts, model,
                                                     sig_mag=0.1,
                                                     r_v=2., ebv_rate=0.11,
-                                                    cosmo=Planck15,
+                                                    cosmo=Planck18,
                                                     **kwargs):
         """
         """
@@ -1570,7 +1578,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
 
     def lightcurve_generic_AngularTimeSeriesSource_basic(self, redshifts, model,
                                                          r_v=2., ebv_rate=0.11,
-                                                         cosmo=Planck15,
+                                                         cosmo=Planck18,
                                                          **kwargs):
         """
         Basic distribution for an AngularTimeSeriesSource. In addition to
@@ -1581,7 +1589,7 @@ class LightCurveGenerator( _PropertyGenerator_ ):
         # Amplitude
         amp = []
         for z in redshifts:
-            amp.append(10**(-0.4*Planck15.distmod(z).value))
+            amp.append(10**(-0.4*Planck18.distmod(z).value))
 
         return {
             'amplitude': np.array(amp),
@@ -1616,7 +1624,7 @@ def lightcurve_scaled_to_mag(redshifts, model,
                              mag=(-18, 0.1),
                              mag_dist_trunc=None,
                              r_v=2., ebv_rate=0.11,
-                             t_scale=None, cosmo=Planck15,
+                             t_scale=None, cosmo=Planck18,
                              n_templates=1,
                              **kwargs):
     """
@@ -1658,7 +1666,7 @@ def lightcurve_scaled_to_mag(redshifts, model,
 
 def zdist_fixed_nsim(nsim, zmin, zmax, 
                      ratefunc=lambda z: 1.,
-                     cosmo=Planck15):
+                     cosmo=Planck18):
     """Generate a distribution of redshifts.
 
     Generates redshifts for a given number of tranisents with the correct
@@ -1678,7 +1686,7 @@ def zdist_fixed_nsim(nsim, zmin, zmax,
         comoving volumetric rate at each redshift in units of yr^-1 Mpc^-3.
         The default is a function that returns ``1.``.
     cosmo : `~astropy.cosmology.Cosmology`, optional
-        Cosmology used to determine volume. The default is Planck15.
+        Cosmology used to determine volume. The default is Planck18.
 
     Examples
     --------
