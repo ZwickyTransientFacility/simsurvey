@@ -24,6 +24,7 @@ __all__ = ["BlackBodySource", "ExpandingBlackBodySource",
            "MultiSource", "SpectralIndexSource", "CompoundSource",
            "AngularTimeSeriesSource"]
 
+
 #######################################
 #                                     #
 # New source classes                  #

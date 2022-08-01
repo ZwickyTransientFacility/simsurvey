@@ -26,6 +26,7 @@ _d2r = np.pi / 180
 __all__ = ["get_transient_generator", "load_transient_generator",
            "generate_transients", "generate_lightcurves"]
 
+    
 def get_transient_generator(zrange,ratekind="basic",ratefunc=None,
                             ra_range=[0,360], dec_range=[-90,90],
                             ntransient=None,

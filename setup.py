@@ -9,12 +9,12 @@ Simulation tools for transient surveys (cadence, strategy).
 
 DISTNAME = 'simsurvey'
 AUTHOR = 'Simsurvey Developers'
-MAINTAINER = 'Ulrich Feindt, Ana Sagués Carracedo'
-MAINTAINER_EMAIL = 'ufeindt@gmail.com, ana.sagues-carracedo@fysik.su.se'
+MAINTAINER = 'Mickael Rigault'
+MAINTAINER_EMAIL = 'm.rigault@ipnl.in2p3.fr'
 URL = 'https://github.com/ZwickyTransientFacility/simsurvey/'
 LICENSE = 'BSD (3-clause)'
 DOWNLOAD_URL = 'https://github.com/ZwickyTransientFacility/tarball/'
-VERSION = "0.7.5"
+VERSION = "0.10.0"
 
 try:
     from setuptools import setup, find_packages
@@ -31,7 +31,6 @@ if __name__ == "__main__":
         packages = ['simsurvey', 'simsurvey.utils']
 
     requirements = [
-        'propobject>=0.1.0',
         'astropy>=1.2.1',
         'sncosmo>=1.3.1',
         'sfdmap>=0.1.0',
